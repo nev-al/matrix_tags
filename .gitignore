@@ -1,0 +1,6 @@
+.gitigonore
+venv/
+data/
+.idea
+key.py
+test_scripts.sh
