@@ -6,7 +6,7 @@ from reportlab.platypus import Paragraph, Frame
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import mm
 import reportlab.lib.enums
-import csv
+from csv_handler import *
 from PIL import Image
 from io import BytesIO
 
@@ -35,13 +35,12 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
     datamatrix_size = min(label_width, label_height) * datamatrix_multiplier
 
     with open(csv_file_path) as csvfile:
-        reader = csv.reader(csvfile, delimiter='|')
+        reader = csv.reader(csvfile, delimiter='\t')
         data = list(reader)
 
     index = 1
 
     for entry in data:
-        # TODO: define parametres to take as user input
         code, name, size, unit_type, sex, madeof, color, model, country, tp_ts = entry
         img = generate_datamatrix(code)
         img_bytes = BytesIO()
@@ -102,14 +101,14 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
     c.save()
 
 
-def generate_label_15_20mm(_data='/home/usr/PycharmProjects/matrix_tags/csv_sample_smaller.csv',
+def generate_label_15_20mm(data='/home/usr/PycharmProjects/matrix_tags/csv_sample_smaller.csv',
                            label_size=20, filename='test_label_smaller.pdf'):
     label_width = label_height = label_size * mm
     c = canvas.Canvas(filename, pagesize=(label_width, label_height))
     datamatrix_size = label_size * mm
 
-    with open(_data) as csvfile:
-        reader = csv.reader(csvfile)
+    with open(data) as csvfile:
+        reader = csv.reader(csvfile, delimiter='\t')
         for row in reader:
             img = generate_datamatrix(row[0].replace('\\x1d', '\x1d'))
             img_bytes = BytesIO()
@@ -119,7 +118,6 @@ def generate_label_15_20mm(_data='/home/usr/PycharmProjects/matrix_tags/csv_samp
                             topPadding=0, showBoundary=1)
             f_image.addFromList(
                 [reportlab.platypus.Image(img_bytes, width=datamatrix_size, height=datamatrix_size), ], c)
-
             c.showPage()
     c.save()
 

@@ -7,6 +7,7 @@ import uuid
 import csv
 import zipfile
 import os
+from pathlib import Path
 from PIL import Image
 from pylibdmtx.pylibdmtx import decode
 import subprocess
@@ -20,22 +21,19 @@ logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
 
-async def handle_zip(path_to_zip_file):
+async def handle_zip(zip_filepath, work_directory_path, csv_filepath):
     num_processes = cpu_count() * 3 // 4 if cpu_count() * 3 // 4 > 1 else 1
     logger.info(f'handle zip. vCPU count: {num_processes}')
-    directory = f'./data_folder_{uuid.uuid4()}'
-    os.makedirs(directory, exist_ok=False)
-    with zipfile.ZipFile(path_to_zip_file, 'r') as zip_ref:
-        zip_ref.extractall(directory)
-    await convert_to_png_parallel(directory, num_processes)
-    data = await decode_png_files_parallel(directory, num_processes)
-    csv_file = os.path.splitext(os.path.basename(path_to_zip_file))[0] + '.csv'
-    with open(csv_file, 'w', newline='') as csvfile:
+    os.makedirs(work_directory_path, exist_ok=False)
+    with zipfile.ZipFile(zip_filepath, 'r') as zip_ref:
+        zip_ref.extractall(work_directory_path)
+    await convert_to_png_parallel(work_directory_path, num_processes)
+    data = await decode_png_files_parallel(work_directory_path, num_processes)
+    with open(csv_filepath, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter='|')
         for key, value in sorted(data.items()):
             writer.writerow([value])
-    delete_directory(directory)
-    return csv_file
+    delete_directory(work_directory_path)
 
 
 async def convert_to_png(file_info):
