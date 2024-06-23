@@ -115,7 +115,7 @@ def generate_label_15_20mm(data='/home/usr/PycharmProjects/matrix_tags/csv_sampl
             img.save(img_bytes, format='PNG')
             img_bytes.seek(0)
             f_image = Frame(0, 0, label_width, label_height, leftPadding=0, bottomPadding=0, rightPadding=0,
-                            topPadding=0, showBoundary=1)
+                            topPadding=0, showBoundary=0)
             f_image.addFromList(
                 [reportlab.platypus.Image(img_bytes, width=datamatrix_size, height=datamatrix_size), ], c)
             c.showPage()

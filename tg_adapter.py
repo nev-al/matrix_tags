@@ -6,9 +6,13 @@ from functools import partial
 from re import match
 from key import *
 from extract_datamatrix_concurrent import *
-from label import generate_label_full_info, generate_label_15_20mm
+from label_generation import generate_label_full_info, generate_label_15_20mm
 from csv_handler import *
+from db_adapter import *
 import time
+
+# TODO: Flask one-page app?
+
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -58,6 +62,7 @@ async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def convert_csv2pdf_full_info_handler_lv2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    # TODO: ask user to input str for every GTIN
     logger.info(f'convert_csv2pdf_full_info_handler_lv2, user {update.effective_chat.id} '
                 f'{update.effective_user.full_name}')
     txt_file_path = context.user_data['full_info_txt_filepath']
@@ -68,11 +73,19 @@ async def convert_csv2pdf_full_info_handler_lv2(update: Update, context: Context
         with open(txt_file_path, 'a') as f:
             f.write(f'{user_input}\n')
         await update.message.reply_text('Принято. Добавите что-то ещё? Нажмите "Готово" для завершения ввода. ',
-                                        reply_markup=ReplyKeyboardMarkup([['Готово', ]], one_time_keyboard=True,
-                                                                         resize_keyboard=True, ))
+                                        reply_markup=ReplyKeyboardMarkup(
+                                            [['Готово', ]], one_time_keyboard=True, resize_keyboard=True,
+                                            input_field_placeholder=
+                                            '04620236343458,название,размер,вид изделия,целевой пол,состав, '
+                                            'цвет,модель,страна,ТР ТС'))
     else:
-        await update.effective_user.send_message('Некорректный ввод. Ограничения: GTIN (в первой позиции) 14 цифр, '
-                                                 'остальные значения не более 20 знаков.')
+        await update.message.reply_text('Некорректный ввод. Ограничения: GTIN (в первой позиции) 14 цифр, '
+                                        'остальные значения не более 20 знаков.',
+                                        reply_markup=ReplyKeyboardMarkup(
+                                            [['Готово', ]], one_time_keyboard=True, resize_keyboard=True,
+                                            input_field_placeholder=
+                                            '04620236343458,название,размер,вид изделия,целевой пол,состав, '
+                                            'цвет,модель,страна,ТР ТС'))
 
     return FOURTH
 
@@ -219,7 +232,6 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                            text=f"CSV файл получен.", )
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
-
             if context.user_data['size'] == 100:
                 logger.info(f'csv_file_handler - full info mode, user {update.effective_chat.id} '
                             f'{update.effective_user.full_name}')
@@ -253,18 +265,22 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open(result_pdf_filepath, "rb") as pdf_file:
                 await context.bot.send_document(chat_id=update.effective_chat.id,
                                                 document=pdf_file, caption="pdf-файл доступен для загрузки.")
-
             delete_files([result_pdf_filepath, ])
             context.user_data["waiting_for_csv"] = False
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только csv-файлы.")
-
     logger.info(f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
     return ConversationHandler.END
 
 
 async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'upload_zip, user {update.effective_chat.id} {update.effective_user.full_name}')
+    # user_id = update.effective_user.id
+    # result = await check_rate_limit(user_id, max_calls=2, time_frame=60)
+    #
+    # if isinstance(result, int):
+    #     await update.message.reply_text(f"Rate limit exceeded. Please try again in {result} seconds.")
+    #     return ConversationHandler.END
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте zip-файл. Размер не более 20 Мб.",
                                    reply_markup=ReplyKeyboardRemove())
     context.user_data["waiting_for_zip"] = True
