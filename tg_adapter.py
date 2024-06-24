@@ -62,35 +62,44 @@ async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def convert_csv2pdf_full_info_handler_lv2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # TODO: ask user to input str for every GTIN
     logger.info(f'convert_csv2pdf_full_info_handler_lv2, user {update.effective_chat.id} '
                 f'{update.effective_user.full_name}')
     txt_file_path = context.user_data['full_info_txt_filepath']
     user_input = update.message.text.strip('\'\"')
-    pattern = r'^(\d{14}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),' \
-              r'([^,]{1,20}),([^,]{1,20})$'
-    if match(pattern, user_input):
-        with open(txt_file_path, 'a') as f:
-            f.write(f'{user_input}\n')
-        await update.message.reply_text('Принято. Добавите что-то ещё? Нажмите "Готово" для завершения ввода. ',
-                                        reply_markup=ReplyKeyboardMarkup(
-                                            [['Готово', ]], one_time_keyboard=True, resize_keyboard=True,
-                                            input_field_placeholder=
-                                            '04620236343458,название,размер,вид изделия,целевой пол,состав, '
-                                            'цвет,модель,страна,ТР ТС'))
-    else:
-        await update.message.reply_text('Некорректный ввод. Ограничения: GTIN (в первой позиции) 14 цифр, '
-                                        'остальные значения не более 20 знаков.',
-                                        reply_markup=ReplyKeyboardMarkup(
-                                            [['Готово', ]], one_time_keyboard=True, resize_keyboard=True,
-                                            input_field_placeholder=
-                                            '04620236343458,название,размер,вид изделия,целевой пол,состав, '
-                                            'цвет,модель,страна,ТР ТС'))
+    if len(context.user_data['unique_GTINs']) > 0:
+        GTIN = context.user_data['unique_GTINs'].pop(0)
+        pattern = r'^([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),([^,]{1,20}),' \
+                  r'([^,]{1,20}),([^,]{1,20})$'
+        if match(pattern, user_input):
+            with open(txt_file_path, 'a') as f:
+                f.write(f'{GTIN},{user_input}\n')
+        else:
+            await update.message.reply_text('Некорректный ввод. Должно быть предоставлено 9 значений через запятую, '
+                                            'содержащих не более 20 знаков каждое. Укажите данные для GTIN '
+                                            f'*{GTIN}*', parse_mode='Markdown',
+                                            reply_markup=ReplyKeyboardMarkup(
+                                                [['Отмена', ]], one_time_keyboard=True, resize_keyboard=True,
+                                                input_field_placeholder=
+                                                'название,размер,вид изделия,целевой пол,состав, '
+                                                'цвет,модель,страна,ТР ТС'))
+            context.user_data['unique_GTINs'].append(GTIN)
+            context.user_data['unique_GTINs'] = sorted(context.user_data['unique_GTINs'])
+            return FOURTH
+        if len(context.user_data['unique_GTINs']) > 0:
+            await update.message.reply_text(f'Принято. Укажите данные для GTIN '
+                                            f'*{context.user_data["unique_GTINs"][0]}*',
+                                            reply_markup=ReplyKeyboardMarkup(
+                                                [['Отмена', ]], one_time_keyboard=True, resize_keyboard=True,
+                                                input_field_placeholder=
+                                                'название,размер,вид изделия,целевой пол,состав, '
+                                                'цвет,модель,страна,ТР ТС'), parse_mode='Markdown')
 
-    return FOURTH
+        else:
+            await convert_csv2pdf_full_info_done_input_lv2(update, context)
+            return ConversationHandler.END
 
 
-async def convert_csv2pdf_full_info_done_input_lv2(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def convert_csv2pdf_full_info_done_input_lv2(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'convert_csv2pdf_full_info_done_input_lv2, user {update.effective_chat.id} '
                 f'{update.effective_user.full_name}')
     full_info_txt_filepath = context.user_data['full_info_txt_filepath']
@@ -106,7 +115,6 @@ async def convert_csv2pdf_full_info_done_input_lv2(update: Update, context: Cont
                                         document=pdf_file, caption="PDF доступен для загрузки.")
 
     delete_files([full_info_txt_filepath, full_info_user_csv_filepath, full_info_result_pdf_filepath], )
-    return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -233,29 +241,7 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
             if context.user_data['size'] == 100:
-                logger.info(f'csv_file_handler - full info mode, user {update.effective_chat.id} '
-                            f'{update.effective_user.full_name}')
-                txt_file_path = Path(f'data/user_{update.effective_user.id}/full_info_txt_{uuid.uuid4()}.txt')
-                context.user_data['full_info_txt_filepath'] = txt_file_path
-                wrong_codes = get_wrong_codes(user_csv_filepath)
-                if len(wrong_codes) > 0:
-                    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                                   text=f"Ваш csv-файл содержит некорректные коды: {wrong_codes}. "
-                                                        f"Генерация для указанных данных не происходит.")
-                data_grouped_by_unique_gtin = group_by_gtin(user_csv_filepath)
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f'Ваши уникальные GTIN\'ы: '
-                                                    f'{tuple(data_grouped_by_unique_gtin.keys())}. '
-                                                    f'Введите данные для каждого GTIN. Данные принимаются по одной '
-                                                    f'строке за раз. После каждой отправленной строки будет '
-                                                    f'предложено ввести ещё строку или завершить ввод. '
-                                                    f'Используйте формат '
-                                                    f'"GTIN,название,цвет,размер,дата". Например: '
-                                                    f'"04620236343458,название,размер,вид изделия,целевой пол,состав,'
-                                                    f'цвет,модель,страна,ТР ТС"', )
-                context.user_data["waiting_for_csv"] = False
-                logger.info(
-                    f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
+                await csv_file_full_info_handler(update, context, user_csv_filepath)
                 return FOURTH
             elif context.user_data['size'] == 20 or 15:
                 logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
@@ -273,14 +259,45 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, user_csv_filepath):
+    logger.info(f'csv_file_handler - full info mode, user {update.effective_chat.id} '
+                f'{update.effective_user.full_name}')
+    context.user_data['full_info_txt_filepath'] = f'data/user_{update.effective_user.id}/' \
+                                                  f'full_info_txt_{uuid.uuid4()}.txt'
+    wrong_codes = get_wrong_codes(user_csv_filepath)
+    if len(wrong_codes) > 0:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=f"Ваш csv-файл содержит некорректные коды: {wrong_codes}. "
+                                            f"Генерация для указанных данных не происходит.")
+    unique_GTINs = sorted(group_by_gtin(user_csv_filepath).keys())
+    context.user_data['unique_GTINs'] = unique_GTINs
+    await context.bot.send_message(chat_id=update.effective_chat.id, parse_mode='Markdown',
+                                   reply_markup=ReplyKeyboardMarkup(
+                                       [['Отмена', ]], one_time_keyboard=True, resize_keyboard=True,
+                                       input_field_placeholder=
+                                       'название,размер,вид изделия,целевой пол,состав, '
+                                       'цвет,модель,страна,ТР ТС'),
+                                   text=f'Ваши уникальные GTIN\'ы: '
+                                        f'{unique_GTINs}. '
+                                        f'Данные вводятся через запятую для каждого запрошенного GTIN. '
+                                        f'Например: '
+                                        f'"название,размер,вид изделия,целевой пол,состав,'
+                                        f'цвет,модель,страна,ТР ТС". Укажите данные для GTIN '
+                                        f'*{unique_GTINs[0]}*', )
+    context.user_data["waiting_for_csv"] = False
+    logger.info(
+        f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
+
+
 async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'upload_zip, user {update.effective_chat.id} {update.effective_user.full_name}')
-    # user_id = update.effective_user.id
-    # result = await check_rate_limit(user_id, max_calls=2, time_frame=60)
-    #
-    # if isinstance(result, int):
-    #     await update.message.reply_text(f"Rate limit exceeded. Please try again in {result} seconds.")
-    #     return ConversationHandler.END
+    user_id = update.effective_user.id
+    result = check_rate_limit(user_id, max_calls=3, time_frame=300)
+    if not result["allowed"]:
+        await update.message.reply_text(f"Количество запросов ограничено. Доступ возобновится через "
+                                        f"{result['remaining_time']} секунд(ы).")
+        return ConversationHandler.END
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте zip-файл. Размер не более 20 Мб.",
                                    reply_markup=ReplyKeyboardRemove())
     context.user_data["waiting_for_zip"] = True
@@ -351,8 +368,8 @@ if __name__ == '__main__':
                         "^(?!Полноформатный$|Датаматрикс 15 мм$|Датаматрикс 20 мм$).*$"), cancel),
                     MessageHandler(filters.Document.FileExtension("csv"), csv_file_handler)],
             FOURTH: [CommandHandler("cancel", cancel),
-                     MessageHandler(filters.Regex("^(?!Готово$).*$"), convert_csv2pdf_full_info_handler_lv2),
-                     MessageHandler(filters.Regex('Готово'), convert_csv2pdf_full_info_done_input_lv2), ],
+                     MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),
+                     MessageHandler(filters.Regex('Отмена'), cancel), ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )

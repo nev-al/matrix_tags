@@ -35,7 +35,7 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
     datamatrix_size = min(label_width, label_height) * datamatrix_multiplier
 
     with open(csv_file_path) as csvfile:
-        reader = csv.reader(csvfile, delimiter='\t')
+        reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         data = list(reader)
 
     index = 1
@@ -108,7 +108,7 @@ def generate_label_15_20mm(data='/home/usr/PycharmProjects/matrix_tags/csv_sampl
     datamatrix_size = label_size * mm
 
     with open(data) as csvfile:
-        reader = csv.reader(csvfile, delimiter='\t')
+        reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         for row in reader:
             img = generate_datamatrix(row[0].replace('\\x1d', '\x1d'))
             img_bytes = BytesIO()

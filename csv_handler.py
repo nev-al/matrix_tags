@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def group_by_gtin(csv_file):
     groups = defaultdict(list)
     with open(csv_file, 'r') as file:
-        reader = csv.reader(file, delimiter='\t')
+        reader = csv.reader(file, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         for row in reader:
             first_element = row[0]
             if isinstance(first_element, str) and has_x1d_before_91_92(first_element):
@@ -44,7 +44,7 @@ def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/
                  output_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/output.csv'):
     # Open the CSV file and read the long strings
     with open(csv_file_path, 'r') as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter='\t')
+        csv_reader = csv.reader(csv_file, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         long_strings = [row[0] for row in csv_reader if isinstance(row[0], str) and
                         has_x1d_before_91_92(row[0])]
 
@@ -71,7 +71,7 @@ def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/
 
     # Write the joined strings to the output CSV file
     with open(output_file_path, 'w', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file, delimiter='\t')
+        csv_writer = csv.writer(csv_file, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         for joined_string in joined_strings:
             csv_writer.writerow(joined_string.split('\t'))
 
@@ -79,7 +79,7 @@ def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/
 def get_wrong_codes(csv_file_path) -> list:
     incorrect_codes = []
     with open(csv_file_path, 'r') as file:
-        reader = csv.reader(file, delimiter='\t')
+        reader = csv.reader(file, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
         for i in reader:
             if not has_x1d_before_91_92(i[0]):
                 incorrect_codes.append(i[0])
