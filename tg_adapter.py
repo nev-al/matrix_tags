@@ -95,6 +95,8 @@ async def convert_csv2pdf_full_info_handler_lv2(update: Update, context: Context
                                                 'цвет,модель,страна,ТР ТС'), parse_mode='Markdown')
 
         else:
+            await update.message.reply_text(f'Получена информация для каждого GTIN. Начинается обработка.',
+                                            reply_markup=ReplyKeyboardRemove())
             await convert_csv2pdf_full_info_done_input_lv2(update, context)
             return ConversationHandler.END
 
@@ -141,19 +143,19 @@ async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFA
 
 1. *EPS в CSV*
 - Отправьте ZIP-архив с EPS-файлами
-- Получите CSV-файл, где каждая строка содержит декодированные данные матрицы данных
+- Получите CSV-файл, где каждая строка содержит полный код маркировки, готовый для форматирования в PDF или использования в ПО вашего принтера.
 
 2. *CSV в PDF*
 - Отправьте CSV-файл со списком кодов
-- Выберите "`Полноформатный`" для формирования PDF с подробной информацией или "`15мм`/`20мм`" для PDF только с матрицами данных
-- Получите PDF, где каждый код представлен как матрица данных на отдельной странице (с вашими дополнительными данными при выборе полноформатного режима, только матрицы данных на листах со стороной 15 или 20 миллиметров в случае выбора режима 15/20 мм)
+- Выберите "Полноформатный" для формирования PDF с подробной информацией или "15мм/20мм" для PDF только с дата матрикс кодом
+- Получите PDF, где каждый код представлен как дата матрикс на отдельной странице (с вашими дополнительными данными при выборе полноформатного режима, только с дата матриксом на этикетках со стороной 15 или 20 миллиметров в случае выбора режима 15/20 мм)
 
 *Начало работы:*
 
 1. Отправьте команду /convert
 2. Выберите вариант конвертации (EPS в CSV или CSV в PDF)
-3. Загрузите требуемый файл (`ZIP` или `CSV`)
-- - Для конвертации CSV в PDF выберите формат вывода (`Полноформатный` или `15мм`/`20мм`)
+3. Загрузите требуемый файл (ZIP или CSV)
+- - Для конвертации CSV в PDF выберите формат вывода (Полноформатный или 15мм/20мм)
 4. Получите конвертированный файл
 
 *Образцы всех файлов, как ожидаемых от пользователя, так и получаемых в результате обработки, можно загрузить в 
@@ -238,6 +240,16 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await file.download_to_drive(user_csv_filepath)
             await context.bot.send_message(chat_id=update.effective_chat.id,
                                            text=f"CSV файл получен.", )
+            wrong_codes = get_wrong_codes(user_csv_filepath)
+            if wrong_codes[1] is True:
+                await context.bot.send_message(chat_id=update.effective_chat.id,
+                                               text=f"Нет корректных данных.")
+                return ConversationHandler.END
+
+            if len(wrong_codes[0]) > 0:
+                await context.bot.send_message(chat_id=update.effective_chat.id,
+                                               text=f"Ваш csv-файл содержит некорректные коды: {wrong_codes[0]}. "
+                                                    f"Генерация для указанных данных не происходит.")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
             if context.user_data['size'] == 100:
@@ -264,11 +276,7 @@ async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAU
                 f'{update.effective_user.full_name}')
     context.user_data['full_info_txt_filepath'] = f'data/user_{update.effective_user.id}/' \
                                                   f'full_info_txt_{uuid.uuid4()}.txt'
-    wrong_codes = get_wrong_codes(user_csv_filepath)
-    if len(wrong_codes) > 0:
-        await context.bot.send_message(chat_id=update.effective_chat.id,
-                                       text=f"Ваш csv-файл содержит некорректные коды: {wrong_codes}. "
-                                            f"Генерация для указанных данных не происходит.")
+
     unique_GTINs = sorted(group_by_gtin(user_csv_filepath).keys())
     context.user_data['unique_GTINs'] = unique_GTINs
     await context.bot.send_message(chat_id=update.effective_chat.id, parse_mode='Markdown',
@@ -291,12 +299,13 @@ async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAU
 
 async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'upload_zip, user {update.effective_chat.id} {update.effective_user.full_name}')
-    user_id = update.effective_user.id
-    result = check_rate_limit(user_id, max_calls=3, time_frame=300)
-    if not result["allowed"]:
-        await update.message.reply_text(f"Количество запросов ограничено. Доступ возобновится через "
-                                        f"{result['remaining_time']} секунд(ы).")
-        return ConversationHandler.END
+
+    # user_id = update.effective_user.id
+    # result = check_rate_limit(user_id, max_calls=3, time_frame=300)
+    # if not result["allowed"]:
+    #     await update.message.reply_text(f"Количество запросов ограничено. Доступ возобновится через "
+    #                                     f"{result['remaining_time']} секунд(ы).")
+    #     return ConversationHandler.END
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте zip-файл. Размер не более 20 Мб.",
                                    reply_markup=ReplyKeyboardRemove())
