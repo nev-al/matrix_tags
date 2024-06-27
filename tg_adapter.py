@@ -11,8 +11,6 @@ from csv_handler import *
 from db_adapter import *
 import time
 
-# TODO: Flask one-page app?
-
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -50,7 +48,8 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['Полноформатный', 'Датаматрикс 15 мм', 'Датаматрикс 20 мм']]
+    reply_keyboard = [['Полноформатный', 'Датаматрикс 15 мм', 'Датаматрикс 20 мм', 'Датаматрикс 15 мм с нумерацией',
+                       'Датаматрикс 20 мм с нумерацией']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -129,7 +128,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_message, user {update.effective_chat.id} {update.effective_user.full_name}')
-    # await update.effective_user.send_video('data/demo_samples/img.gif')
     reply_keyboard = [['EPS -> CSV', 'CSV -> PDF']]
     await update.message.reply_text(
         '''
@@ -218,12 +216,13 @@ async def help_download_sample_lv2(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 
-async def upload_csv(update: Update, context: ContextTypes.DEFAULT_TYPE, size):
+async def upload_csv(update: Update, context: ContextTypes.DEFAULT_TYPE, size, index_on):
     logger.info(f'upload_csv, user {update.effective_chat.id} {update.effective_user.full_name}')
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте csv-файл.",
                                    reply_markup=ReplyKeyboardRemove())
     context.user_data["waiting_for_csv"] = True
     context.user_data['size'] = size
+    context.user_data['index_on'] = index_on
 
 
 async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -257,9 +256,11 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return FOURTH
             elif context.user_data['size'] == 20 or 15:
                 logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
-                            f'{update.effective_user.full_name}')
+                            f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                            f"index_on {context.user_data['index_on']} ")
                 generate_label_15_20mm(user_csv_filepath, filename=result_pdf_filepath,
-                                       label_size=int(context.user_data['size']))
+                                       label_size=int(context.user_data['size']),
+                                       index_on=context.user_data['index_on'])
             with open(result_pdf_filepath, "rb") as pdf_file:
                 await context.bot.send_document(chat_id=update.effective_chat.id,
                                                 document=pdf_file, caption="pdf-файл доступен для загрузки.")
@@ -371,10 +372,15 @@ if __name__ == '__main__':
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
             THIRD: [MessageHandler(filters.Regex("^Полноформатный$"), partial(upload_csv, size=100)),
-                    MessageHandler(filters.Regex("^Датаматрикс 15 мм$"), partial(upload_csv, size=15)),
-                    MessageHandler(filters.Regex("^Датаматрикс 20 мм$"), partial(upload_csv, size=20)),
+                    MessageHandler(filters.Regex("^Датаматрикс 15 мм$"), partial(upload_csv, size=15, index_on=False)),
+                    MessageHandler(filters.Regex("^Датаматрикс 20 мм$"), partial(upload_csv, size=20, index_on=False)),
+                    MessageHandler(filters.Regex("^Датаматрикс 15 мм с нумерацией$"),
+                                   partial(upload_csv, size=15, index_on=True)),
+                    MessageHandler(filters.Regex("^Датаматрикс 20 мм с нумерацией$"),
+                                   partial(upload_csv, size=20, index_on=True)),
                     MessageHandler(filters.Regex(
-                        "^(?!Полноформатный$|Датаматрикс 15 мм$|Датаматрикс 20 мм$).*$"), cancel),
+                        "^(?!Полноформатный$|Датаматрикс 15 мм$|Датаматрикс 20 мм$|Датаматрикс 20 мм с нумерацией$|"
+                        "Датаматрикс 15 мм с нумерацией$).*$"), cancel),
                     MessageHandler(filters.Document.FileExtension("csv"), csv_file_handler)],
             FOURTH: [CommandHandler("cancel", cancel),
                      MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),

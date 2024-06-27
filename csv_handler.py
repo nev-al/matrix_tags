@@ -26,46 +26,28 @@ def group_by_gtin(csv_file):
                 else:
                     print(f'csv_handler. incorrect data: {row[0]}')
                     logger.error(f'{logger.parent.name} group_by_gtin. incorrect data: {row[0]}')
-                
     return groups
-
-
-def has_x1d_before_91_92(string):
-    encoded_string = string.replace('\\x1d', '\x1d')
-    if encoded_string.count('\x1d') != 2:
-        return False
-    r = [i for i in range(len(encoded_string)) if encoded_string.startswith('\x1d', i)]
-    if encoded_string[r[0] + 1] + encoded_string[r[0] + 2] == '91' and encoded_string[r[1] + 1] + \
-            encoded_string[r[1] + 2] == '92':
-        return True
-    else:
-        return False
 
 
 def is_datacode_valid(string) -> bool:
     encoded_string = string.replace('\\x1d', '\x1d')
-
     long_pattern = r"^01\d{14}21(?:[\w!\"%&'()*+,\-./_:;=<>?]{6}|[\w!\"%&'()*+,\-./_:;=<>?]{13}|" \
                    r"[\w!\"%&'()*+,\-./_:;=<>?]{20})\x1d91(?:[\w!\"%&'()*+,\-./_:;=<>?]{4})\x1d92" \
                    r"(?:[\w!\"%&'()*+,\-./_:;=<>?]{44}|[\w!\"%&'()*+,\-./_:;=<>?]{88})$"
-
     short_pattern = r"^01\d{14}21(?:[\w!\"%&'()*+,\-./_:;=<>?]{6}|[\w!\"%&'()*+,\-./_:;=<>?]{7}|" \
                     r"[\w!\"%&'()*+,\-./_:;=<>?]{13})\x1d93(?:[\w!\"%&'()*+,\-./_:;=<>?]{4}|" \
                     r"[\w!\"%&'()*+,\-./_:;=<>?]{7})(\d{10})?$"
-
     nicotine_pattern = r"^01\d{14}21[\w!\"%&'()*+,\-./_:;=<>?]{7}8005[\w!\"%&'()*+,\-./_:;=<>?]{6}\x1d93" \
                        r"[\w!\"%&'()*+,\-./_:;=<>?]{4}$"
-
-    # Check if the encoded_string matches any of the patterns
-    if (re.match(long_pattern, encoded_string) or
-            re.match(short_pattern, encoded_string) or
+    if (re.match(long_pattern, encoded_string) or re.match(short_pattern, encoded_string) or
             re.match(nicotine_pattern, encoded_string)):
         return True
     else:
         return False
 
 
-
+def find_datacode(string) -> str:
+    pass
 
 
 def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/long_strings.csv',
@@ -93,8 +75,8 @@ def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/
         for i, short_string in enumerate(short_strings):
             if short_string in long_string:
                 value1, value2, value3, value4, value5, value6, value7, value8, value9 = values[i]
-                joined_string = f"{long_string}\t{value1}\t{value2}\t{value3}\t{value4}\t{value5}\t{value6}\t{value7}\t" \
-                                f"{value8}\t{value9}"
+                joined_string = f"{long_string}\t{value1}\t{value2}\t{value3}\t{value4}\t{value5}\t{value6}\t" \
+                                f"{value7}\t{value8}\t{value9}"
                 joined_strings.append(joined_string)
                 break
 
@@ -106,6 +88,7 @@ def join_strings(csv_file_path='/home/usr/PycharmProjects/matrix_tags/data/test/
 
 
 def get_wrong_codes(csv_file_path) -> (list, bool):
+    # TODO: rewrite this, it's ugly
     incorrect_codes = []
     reader_row_count = 0
     with open(csv_file_path, 'r') as file:

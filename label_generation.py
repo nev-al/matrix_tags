@@ -102,10 +102,13 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
 
 
 def generate_label_15_20mm(data='/home/usr/PycharmProjects/matrix_tags/csv_sample_smaller.csv',
-                           label_size=20, filename='test_label_smaller.pdf'):
+                           label_size=20, filename='test_label_smaller.pdf', index_on=False):
     label_width = label_height = label_size * mm
     c = canvas.Canvas(filename, pagesize=(label_width, label_height))
+    pdfmetrics.registerFont(TTFont('DejaVuSerif', 'DejaVuSerif.ttf'))
+    pdfmetrics.registerFont(TTFont('DejaVuSerif-Bold', 'DejaVuSerif-Bold.ttf'))
     datamatrix_size = label_size * mm
+    index = 1
 
     with open(data) as csvfile:
         reader = csv.reader(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
@@ -118,9 +121,14 @@ def generate_label_15_20mm(data='/home/usr/PycharmProjects/matrix_tags/csv_sampl
                             topPadding=0, showBoundary=0)
             f_image.addFromList(
                 [reportlab.platypus.Image(img_bytes, width=datamatrix_size, height=datamatrix_size), ], c)
+            if index_on:
+                c.setFont('DejaVuSerif-Bold', 3)
+                c.drawString(datamatrix_size // 2, 1, f'{index}')
             c.showPage()
+            index += 1
     c.save()
 
 
 if __name__ == '__main__':
-    generate_label_full_info('/home/usr/PycharmProjects/matrix_tags/data/test/joined_170141723.csv')
+    # generate_label_full_info('/home/usr/PycharmProjects/matrix_tags/data/test/joined_170141723.csv')
+    generate_label_15_20mm(data='data/demo_samples/sample_csv2pdf_15_20mm.csv')

@@ -30,7 +30,7 @@ async def handle_zip(zip_filepath, work_directory_path, csv_filepath):
     await convert_to_png_parallel(work_directory_path, num_processes)
     data = await decode_png_files_parallel(work_directory_path, num_processes)
     with open(csv_filepath, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\')
+        writer = csv.writer(csvfile, delimiter='\t', quoting=csv.QUOTE_NONE, escapechar='\\', quotechar='\0')
         for key, value in sorted(data.items()):
             writer.writerow([value])
     delete_directory(work_directory_path)
