@@ -239,16 +239,18 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await file.download_to_drive(user_csv_filepath)
             await context.bot.send_message(chat_id=update.effective_chat.id,
                                            text=f"CSV файл получен.", )
-            wrong_codes = get_wrong_codes(user_csv_filepath)
-            if wrong_codes[1] is True:
+
+            row_count, incorrect_codes_count = csv_file_row_count(user_csv_filepath), \
+                incorrect_csv_file_codes_count(user_csv_filepath)
+            if row_count == incorrect_codes_count:
                 await context.bot.send_message(chat_id=update.effective_chat.id,
                                                text=f"Нет корректных данных.")
                 return ConversationHandler.END
 
-            if len(wrong_codes[0]) > 0:
+            if row_count > incorrect_codes_count > 0:
                 await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f"Ваш csv-файл содержит некорректные коды: {wrong_codes[0]}. "
-                                                    f"Генерация для указанных данных не происходит.")
+                                               text=f"Ваш csv-файл содержит некорректные коды. "
+                                                    f"Генерация для таких данных не происходит.")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
             if context.user_data['size'] == 100:
@@ -258,7 +260,7 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
                             f"{update.effective_user.full_name} size {context.user_data['size']}, "
                             f"index_on {context.user_data['index_on']} ")
-                generate_label_15_20mm(user_csv_filepath, filename=result_pdf_filepath,
+                generate_label_15_20mm(user_csv_filepath, output_file=result_pdf_filepath,
                                        label_size=int(context.user_data['size']),
                                        index_on=context.user_data['index_on'])
             with open(result_pdf_filepath, "rb") as pdf_file:
@@ -278,8 +280,7 @@ async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAU
     context.user_data['full_info_txt_filepath'] = f'data/user_{update.effective_user.id}/' \
                                                   f'full_info_txt_{uuid.uuid4()}.txt'
 
-    unique_GTINs = sorted(group_by_gtin(user_csv_filepath).keys())
-    context.user_data['unique_GTINs'] = unique_GTINs
+    context.user_data['unique_GTINs'] = gtin_set(user_csv_filepath)
     await context.bot.send_message(chat_id=update.effective_chat.id, parse_mode='Markdown',
                                    reply_markup=ReplyKeyboardMarkup(
                                        [['Отмена', ]], one_time_keyboard=True, resize_keyboard=True,
@@ -287,12 +288,12 @@ async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAU
                                        'название,размер,вид изделия,целевой пол,состав, '
                                        'цвет,модель,страна,ТР ТС'),
                                    text=f'Ваши уникальные GTIN\'ы: '
-                                        f'{unique_GTINs}. '
+                                        f'{context.user_data["unique_GTINs"]}. '
                                         f'Данные вводятся через запятую для каждого запрошенного GTIN. '
                                         f'Например: '
                                         f'"название,размер,вид изделия,целевой пол,состав,'
                                         f'цвет,модель,страна,ТР ТС". Укажите данные для GTIN '
-                                        f'*{unique_GTINs[0]}*', )
+                                        f'*{context.user_data["unique_GTINs"][0]}*', )
     context.user_data["waiting_for_csv"] = False
     logger.info(
         f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
@@ -371,7 +372,7 @@ if __name__ == '__main__':
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
-            THIRD: [MessageHandler(filters.Regex("^Полноформатный$"), partial(upload_csv, size=100)),
+            THIRD: [MessageHandler(filters.Regex("^Полноформатный$"), partial(upload_csv, size=100, index_on=False)),
                     MessageHandler(filters.Regex("^Датаматрикс 15 мм$"), partial(upload_csv, size=15, index_on=False)),
                     MessageHandler(filters.Regex("^Датаматрикс 20 мм$"), partial(upload_csv, size=20, index_on=False)),
                     MessageHandler(filters.Regex("^Датаматрикс 15 мм с нумерацией$"),
