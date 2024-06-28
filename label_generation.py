@@ -192,6 +192,10 @@ def divide_sheet(dmtx_size=20):
     return piece_info
 
 
+def sheet_check():
+    pass
+
+
 
 if __name__ == '__main__':
     # generate_label_full_info('/home/usr/PycharmProjects/matrix_tags/data/test/joined_170141723.csv')
