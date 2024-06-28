@@ -4,11 +4,12 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, Frame
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import mm
+from reportlab.lib.pagesizes import A4, mm
 import reportlab.lib.enums
 from csv_handler import *
 from PIL import Image
 from io import BytesIO
+
 
 
 def generate_datamatrix(code, size='SquareAuto'):
@@ -101,7 +102,7 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
     c.save()
 
 
-def generate_label_15_20mm(csv_file_path, label_size, output_file, index_on):
+def generate_label_15_20mm_per_page(csv_file_path, label_size, output_file, index_on):
     label_width = label_height = label_size * mm
     c = canvas.Canvas(output_file, pagesize=(label_width, label_height))
     pdfmetrics.registerFont(TTFont('DejaVuSerif', 'DejaVuSerif.ttf'))
@@ -112,7 +113,6 @@ def generate_label_15_20mm(csv_file_path, label_size, output_file, index_on):
         data_codes = file.readlines()
         for string in data_codes:
             result = find_datacode(string)
-            print(result)
             if result:
                 img = generate_datamatrix(result)
                 img_bytes = BytesIO()
@@ -130,7 +130,70 @@ def generate_label_15_20mm(csv_file_path, label_size, output_file, index_on):
     c.save()
 
 
+def generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file='test_15_20mm_paving.pdf', index_on=False):
+    MAX_PIECES = 266 if label_size == 15 else 140
+    label_width, label_height = A4
+    c = canvas.Canvas(output_file, pagesize=(label_width, label_height))
+    datamatrix_size = label_size * mm
+    frames_list = []
+    images_list = []
+    with open(csv_file_path) as file:
+        data_codes = file.readlines()
+        for string in data_codes:
+            result = find_datacode(string)
+            if result:
+                img = generate_datamatrix(result)
+                img_bytes = BytesIO()
+                img.save(img_bytes, format='PNG')
+                img_bytes.seek(0)
+                images_list.append(reportlab.platypus.Image(img_bytes, width=datamatrix_size, height=datamatrix_size))
+                # f_image.addFromList(
+                #     [reportlab.platypus.Image(img_bytes, width=datamatrix_size, height=datamatrix_size), ], c)
+
+    index = 1
+    for img_index in range(len(images_list)):
+        if img_index // MAX_PIECES > 0 and img_index % MAX_PIECES == 0:
+            c.showPage()
+        coords = divide_sheet(label_size)
+        for coord in coords:
+            frames_list.append(
+                Frame(coord[0], coord[1], coord[2], coord[3], leftPadding=0, bottomPadding=0,
+                      rightPadding=0, topPadding=0, showBoundary=0))
+        # f_image = Frame(0, 0, label_width, label_height, leftPadding=1, bottomPadding=1, rightPadding=1,
+        #                 topPadding=1, showBoundary=1)
+        frames_list[img_index].addFromList([images_list[img_index]], c)
+        # frames_list[img_index].addFromList([Paragraph(f'{index}'), ], c)
+        index += 1
+    c.save()
+
+
+def divide_sheet(dmtx_size=20):
+    sheet_width, sheet_height = A4
+    piece_width = dmtx_size * mm
+    piece_height = dmtx_size * mm
+    if piece_width <= 0 or piece_height <= 0:
+        raise ValueError("Piece dimensions must be positive numbers.")
+
+    if piece_width > sheet_width or piece_height > sheet_height:
+        raise ValueError("Piece size cannot be larger than sheet size.")
+
+    num_pieces_width = int(sheet_width // piece_width)
+    num_pieces_height = int(sheet_height // piece_height)
+
+    total_pieces = num_pieces_width * num_pieces_height
+
+    piece_info = []
+    for i in range(num_pieces_height):
+        for j in range(num_pieces_width):
+            x = j * piece_width
+            y = i * piece_height
+            piece_info.append((x, y, piece_width, piece_height))
+
+    return piece_info
+
+
+
 if __name__ == '__main__':
     # generate_label_full_info('/home/usr/PycharmProjects/matrix_tags/data/test/joined_170141723.csv')
-    generate_label_15_20mm(csv_file_path='data/user_722178606/csv_29c90f25-fb8a-4bed-b3dc-a7bb45ade39e.csv',
-                           label_size=20, output_file='output.pdf', index_on=True)
+    generate_label_15_20mm_per_page(csv_file_path='data/user_722178606/csv_29c90f25-fb8a-4bed-b3dc-a7bb45ade39e.csv',
+                                    label_size=20, output_file='output.pdf', index_on=True)
