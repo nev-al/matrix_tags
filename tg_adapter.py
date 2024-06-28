@@ -6,11 +6,10 @@ from functools import partial
 from re import match
 from key import *
 from extract_datamatrix_concurrent import *
-from label_generation import generate_label_full_info, generate_label_15_20mm
+from label_generation import generate_label_full_info, generate_label_15_20mm_per_page, generate_label_15_20mm_paving_a4
 from csv_handler import *
 from db_adapter import *
 import time
-
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -48,8 +47,8 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['Полноформатный', 'Датаматрикс 15 мм', 'Датаматрикс 20 мм', 'Датаматрикс 15 мм с нумерацией',
-                       'Датаматрикс 20 мм с нумерацией']]
+    reply_keyboard = [['Полноформатный', '15мм/стр', '20мм/стр', '15мм/стр  с нумерацией',
+                       '20мм/стр  с нумерацией', '15мм замостить', '20мм замостить']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -216,13 +215,14 @@ async def help_download_sample_lv2(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 
-async def upload_csv(update: Update, context: ContextTypes.DEFAULT_TYPE, size, index_on):
+async def upload_csv(update: Update, context: ContextTypes.DEFAULT_TYPE, size, index_on, paving):
     logger.info(f'upload_csv, user {update.effective_chat.id} {update.effective_user.full_name}')
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте csv-файл.",
                                    reply_markup=ReplyKeyboardRemove())
     context.user_data["waiting_for_csv"] = True
     context.user_data['size'] = size
     context.user_data['index_on'] = index_on
+    context.user_data['paving'] = paving
 
 
 async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -253,16 +253,23 @@ async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                                     f"Генерация для таких данных не происходит.")
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
-            if context.user_data['size'] == 100:
+            if context.user_data['size'] == 100 and not context.user_data['paving']:
                 await csv_file_full_info_handler(update, context, user_csv_filepath)
                 return FOURTH
-            elif context.user_data['size'] == 20 or 15:
+            elif (context.user_data['size'] == 20 or 15) and not context.user_data['paving']:
                 logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
                             f"{update.effective_user.full_name} size {context.user_data['size']}, "
-                            f"index_on {context.user_data['index_on']} ")
-                generate_label_15_20mm(user_csv_filepath, output_file=result_pdf_filepath,
-                                       label_size=int(context.user_data['size']),
-                                       index_on=context.user_data['index_on'])
+                            f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+                generate_label_15_20mm_per_page(user_csv_filepath, output_file=result_pdf_filepath,
+                                                label_size=int(context.user_data['size']),
+                                                index_on=context.user_data['index_on'])
+            elif (context.user_data['size'] == 20 or 15) and context.user_data['paving']:
+                logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
+                            f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                            f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+                generate_label_15_20mm_paving_a4(user_csv_filepath, output_file=result_pdf_filepath,
+                                                 label_size=int(context.user_data['size']),
+                                                 index_on=context.user_data['index_on'])
             with open(result_pdf_filepath, "rb") as pdf_file:
                 await context.bot.send_document(chat_id=update.effective_chat.id,
                                                 document=pdf_file, caption="pdf-файл доступен для загрузки.")
@@ -372,16 +379,23 @@ if __name__ == '__main__':
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
-            THIRD: [MessageHandler(filters.Regex("^Полноформатный$"), partial(upload_csv, size=100, index_on=False)),
-                    MessageHandler(filters.Regex("^Датаматрикс 15 мм$"), partial(upload_csv, size=15, index_on=False)),
-                    MessageHandler(filters.Regex("^Датаматрикс 20 мм$"), partial(upload_csv, size=20, index_on=False)),
-                    MessageHandler(filters.Regex("^Датаматрикс 15 мм с нумерацией$"),
-                                   partial(upload_csv, size=15, index_on=True)),
-                    MessageHandler(filters.Regex("^Датаматрикс 20 мм с нумерацией$"),
-                                   partial(upload_csv, size=20, index_on=True)),
+            THIRD: [MessageHandler(filters.Regex("^Полноформатный$"),
+                                   partial(upload_csv, size=100, index_on=False, paving=False)),
+                    MessageHandler(filters.Regex("^15мм/стр$"),
+                                   partial(upload_csv, size=15, index_on=False, paving=False)),
+                    MessageHandler(filters.Regex("^20мм/стр$"),
+                                   partial(upload_csv, size=20, index_on=False, paving=False)),
+                    MessageHandler(filters.Regex("^15мм/стр  с нумерацией$"),
+                                   partial(upload_csv, size=15, index_on=True, paving=False)),
+                    MessageHandler(filters.Regex("^20мм/стр  с нумерацией$"),
+                                   partial(upload_csv, size=20, index_on=True, paving=False)),
+                    MessageHandler(filters.Regex("^15мм замостить$"),
+                                   partial(upload_csv, size=15, index_on=False, paving=True)),
+                    MessageHandler(filters.Regex("^20мм замостить$"),
+                                   partial(upload_csv, size=20, index_on=False, paving=True)),
                     MessageHandler(filters.Regex(
-                        "^(?!Полноформатный$|Датаматрикс 15 мм$|Датаматрикс 20 мм$|Датаматрикс 20 мм с нумерацией$|"
-                        "Датаматрикс 15 мм с нумерацией$).*$"), cancel),
+                        "^(?!Полноформатный$|15мм/стр$|20мм/стр$|15мм с нумерацией/стр$|20мм с нумерацией/стр$|"
+                        "15мм замостить$|20мм замостить$).*$"), cancel),
                     MessageHandler(filters.Document.FileExtension("csv"), csv_file_handler)],
             FOURTH: [CommandHandler("cancel", cancel),
                      MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),
