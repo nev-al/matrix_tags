@@ -11,6 +11,7 @@ from PIL import Image
 from io import BytesIO
 
 
+
 def generate_datamatrix(code, size='SquareAuto'):
     encoder = pylibdmtx.encode(code.encode('utf-8'), size=size)
     img = Image.frombytes('RGB', (encoder.width, encoder.height), encoder.pixels)
