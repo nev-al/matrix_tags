@@ -40,11 +40,11 @@ def is_datacode_valid(string) -> bool:
 
 
 def find_datacode(string, mode=0) -> str:
-    '''
+    """
     :param string:
-    :param mode: 0 - matched string, 1 = gtin only, 2 = serial number only
+    :param mode: 0 = matched string, 1 = gtin only, 2 = serial number only
     :return:
-    '''
+    """
 
     encoded_string = string.replace('\\x1d', '\x1d')
 
