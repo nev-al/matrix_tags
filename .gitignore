@@ -3,5 +3,5 @@ venv/
 data/
 .idea
 key.py
-test_scripts.sh
+data/other_files/test_scripts.sh
 logs.txt
