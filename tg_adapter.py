@@ -405,7 +405,8 @@ if __name__ == '__main__':
     )
     app.add_handler(conv_handler)
     help_conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('help', start_help_conversation_lv0)],
+        entry_points=[CommandHandler('help', start_help_conversation_lv0),
+                      CommandHandler('start', start_help_conversation_lv0)],
         states={
             FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), help_eps2csv_lv1),
                     MessageHandler(filters.Regex("^CSV -> PDF$"), help_csv2pdf_lv1),
