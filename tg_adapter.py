@@ -179,7 +179,7 @@ async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFA
 
 async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_eps2csv, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['Ваш zip', 'Итоговый csv']]
+    reply_keyboard = [['zip с eps', 'Итоговый csv']]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) zip-архив с eps-файлами внутри, '
                                         'такой архив предоставляется Вами для обработки. 2) csv-файл со списком кодов, '
@@ -191,9 +191,7 @@ async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['Ваш csv для получения полноформатного pdf', 'Ваш csv для получения 15мм или 20мм',
-                       'Итоговый pdf с кодами 20мм', 'Итоговый pdf с кодами 15мм',
-                       'Итоговый полноформатный pdf']]
+    reply_keyboard = [["csv", "csv 20мм", "pdf 15мм", "pdf 20мм", "Полноформатный pdf"]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) csv-файл с кодами для преобразования '
                                         'в pdf-файл с полной информацией 2) csv-файл с кодами для получения 15 или '
@@ -411,36 +409,36 @@ if __name__ == '__main__':
             FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), help_eps2csv_lv1),
                     MessageHandler(filters.Regex("^CSV -> PDF$"), help_csv2pdf_lv1),
                     MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$).*$"), cancel), ],
-            SECOND: [MessageHandler(filters.Regex('Ваш zip'),
+            SECOND: [MessageHandler(filters.Regex('zip с eps'),
                                     partial(help_download_sample_lv2,
                                             path='data/demo_samples/sample_eps2csv_archive_1000.zip')),
                      MessageHandler(filters.Regex('Итоговый csv'),
                                     partial(help_download_sample_lv2,
                                             path='data/demo_samples/sample_eps2csv_result.csv')),
-                     MessageHandler(filters.Regex("^(?!Ваш zip$|Итоговый csv$).*$"), cancel), ],
-            THIRD: [MessageHandler(filters.Regex('Ваш csv для получения 15мм или 20мм'),
+                     MessageHandler(filters.Regex("^(?!zip с eps$|csv$).*$"), cancel), ],
+            THIRD: [MessageHandler(filters.Regex('csv 20мм'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_15_20mm.csv')),
-                    MessageHandler(filters.Regex('Ваш csv для получения полноформатного pdf'),
+                    MessageHandler(filters.Regex('csv'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_full_info.csv')),
-                    MessageHandler(filters.Regex('Итоговый pdf с кодами 20мм'),
+                    MessageHandler(filters.Regex('pdf 20мм'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_20mm.pdf')),
-                    MessageHandler(filters.Regex('Итоговый pdf с кодами 15мм', ),
+                    MessageHandler(filters.Regex('pdf 15мм', ),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_15mm.pdf')),
-                    MessageHandler(filters.Regex('Итоговый полноформатный pdf'),
+                    MessageHandler(filters.Regex('Полноформатный pdf'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_full_info.pdf')),
-                    MessageHandler(filters.Regex("^(?!Ваш csv для получения 15мм или 20мм$|"
-                                                 "Ваш csv для получения полноформатного pdf$|"
-                                                 "Итоговый pdf с кодами 20мм$|Итоговый pdf с кодами 15мм$|"
-                                                 "Итоговый полноформатный pdf$).*$"), cancel),
+                    MessageHandler(filters.Regex("^(?!zip с eps$|"
+                                                 "csv$|"
+                                                 "csv 20мм$|pdf 15мм$|Итоговый csv$|"
+                                                 "Полноформатный pdf$).*$"), cancel),
                     ]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
-    app.add_handler(CommandHandler('start', start_help_conversation_lv0))
+    # app.add_handler(CommandHandler('start', start_help_conversation_lv0))
     app.add_handler(help_conv_handler)
     app.run_polling(allowed_updates=Update.ALL_TYPES)
