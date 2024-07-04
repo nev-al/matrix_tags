@@ -1,5 +1,6 @@
+import json
 import telegram.error
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton, WebAppInfo
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, filters, Application, \
     ConversationHandler
 from functools import partial
@@ -17,12 +18,12 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
-FIRST, SECOND, THIRD, FOURTH = range(4)
+FIRST, SECOND, THIRD, FOURTH, FIFTH = range(5)
 
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['EPS -> CSV', 'CSV -> PDF']]
+    reply_keyboard = [['EPS -> CSV', 'CSV -> PDF', 'JSON']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -361,6 +362,35 @@ async def zip_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def web_app_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'web_app_run, user {update.effective_chat.id} {update.effective_user.full_name}')
+    await update.message.reply_text(
+        "Выберите:",
+        reply_markup=ReplyKeyboardMarkup.from_button(
+            KeyboardButton(
+                text="JSON",
+                web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg"),
+            )
+        ),
+    )
+    return FIFTH
+
+
+async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'web_app_data, user {update.effective_chat.id} {update.effective_user.full_name}')
+    user_json_filepath = Path(f'data/user_{update.effective_user.id}/json_{uuid.uuid4()}.json')
+    user_json_filepath.parent.mkdir(parents=True, exist_ok=True)
+    data = json.loads(update.effective_message.web_app_data.data)
+    await update.message.reply_html(text=f"Данные получены", reply_markup=ReplyKeyboardRemove(), )
+    data_trimmed = {k: v for k, v in data.items() if v}
+    with open(user_json_filepath, "w") as json_file:
+        json.dump(data_trimmed, json_file)
+    with open(user_json_filepath, "rb") as json_file:
+        await context.bot.send_document(chat_id=update.effective_chat.id,
+                                        document=json_file, caption="json доступен для загрузки.")
+    return ConversationHandler.END
+
+
 async def post_init(application: Application) -> None:
     await application.bot.set_my_commands([('convert', 'Начать преобразование'), ['cancel', 'Прервать диалог'],
                                            ('help', 'Показать справку')])
@@ -373,7 +403,8 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), upload_zip),
                     MessageHandler(filters.Regex("^CSV -> PDF$"), convert_csv2pdf_lv1),
-                    MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$).*$"), cancel), ],
+                    MessageHandler(filters.Regex("^JSON$"), web_app_run),
+                    MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$|JSON$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
@@ -398,6 +429,7 @@ if __name__ == '__main__':
             FOURTH: [CommandHandler("cancel", cancel),
                      MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),
                      MessageHandler(filters.Regex('Отмена'), cancel), ],
+            FIFTH: [MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
@@ -408,6 +440,7 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), help_eps2csv_lv1),
                     MessageHandler(filters.Regex("^CSV -> PDF$"), help_csv2pdf_lv1),
+
                     MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$).*$"), cancel), ],
             SECOND: [MessageHandler(filters.Regex('zip с eps'),
                                     partial(help_download_sample_lv2,
