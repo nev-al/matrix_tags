@@ -11,6 +11,7 @@ from label_generation import generate_label_full_info, generate_label_15_20mm_pe
 from csv_handler import *
 from db_adapter import *
 import time
+from enum import StrEnum
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
@@ -21,9 +22,24 @@ logger = logging.getLogger(__name__)
 FIRST, SECOND, THIRD, FOURTH, FIFTH = range(5)
 
 
+class ModeButtons(StrEnum):
+    EPS2CSV = "EPS -> CSV",
+    CSV2PDF = "CSV -> PDF",
+    JSON = "JSON",
+    FULL_FORMATTING = "Полноформатный",
+    MM20 = "20мм/стр",
+    MM15 = "15мм/стр",
+    MM20_NUM = "20мм/стр  с нумерацией",
+    MM15_NUM = "15мм/стр  с нумерацией",
+    MM20_A4 = '20мм замостить',
+    MM15_A4 = '15мм замостить',
+    ZIP = 'ZIP',
+    CSV = 'CSV',
+
+
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['EPS -> CSV', 'CSV -> PDF', 'JSON']]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, ModeButtons.JSON]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -48,8 +64,9 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['Полноформатный', '15мм/стр', '20мм/стр', '15мм/стр  с нумерацией',
-                       '20мм/стр  с нумерацией', '15мм замостить', '20мм замостить']]
+    reply_keyboard = [[f'{ModeButtons.FULL_FORMATTING}', f'{ModeButtons.MM15}', f'{ModeButtons.MM20}',
+                       f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}', f'{ModeButtons.MM15_A4}',
+                       f'{ModeButtons.MM20_A4}']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -128,7 +145,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_message, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['EPS -> CSV', 'CSV -> PDF']]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF]]
     await update.message.reply_text(
         '''
 *Доступные команды:*
@@ -180,7 +197,7 @@ async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFA
 
 async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_eps2csv, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [['zip с eps', 'Итоговый csv']]
+    reply_keyboard = [[f'{ModeButtons.ZIP}', f'{ModeButtons.CSV}']]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) zip-архив с eps-файлами внутри, '
                                         'такой архив предоставляется Вами для обработки. 2) csv-файл со списком кодов, '
@@ -192,7 +209,8 @@ async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [["csv", "csv 20мм", "pdf 15мм", "pdf 20мм", "Полноформатный pdf"]]
+    reply_keyboard = [[f"{ModeButtons.CSV}", f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",
+                       f"{ModeButtons.FULL_FORMATTING}"]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) csv-файл с кодами для преобразования '
                                         'в pdf-файл с полной информацией 2) csv-файл с кодами для получения 15 или '
@@ -401,30 +419,32 @@ if __name__ == '__main__':
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("convert", start_conversation_handler_lv0)],
         states={
-            FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), upload_zip),
-                    MessageHandler(filters.Regex("^CSV -> PDF$"), convert_csv2pdf_lv1),
-                    MessageHandler(filters.Regex("^JSON$"), web_app_run),
-                    MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$|JSON$).*$"), cancel), ],
+            FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), upload_zip),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), convert_csv2pdf_lv1),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), web_app_run),
+                    MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$|"
+                                                 f"{ModeButtons.JSON}$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
-            THIRD: [MessageHandler(filters.Regex("^Полноформатный$"),
+            THIRD: [MessageHandler(filters.Regex(f"^{ModeButtons.FULL_FORMATTING}$"),
                                    partial(upload_csv, size=100, index_on=False, paving=False)),
-                    MessageHandler(filters.Regex("^15мм/стр$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM15}$"),
                                    partial(upload_csv, size=15, index_on=False, paving=False)),
-                    MessageHandler(filters.Regex("^20мм/стр$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM20}$"),
                                    partial(upload_csv, size=20, index_on=False, paving=False)),
-                    MessageHandler(filters.Regex("^15мм/стр  с нумерацией$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM15_NUM}$"),
                                    partial(upload_csv, size=15, index_on=True, paving=False)),
-                    MessageHandler(filters.Regex("^20мм/стр  с нумерацией$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM20_NUM}$"),
                                    partial(upload_csv, size=20, index_on=True, paving=False)),
-                    MessageHandler(filters.Regex("^15мм замостить$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM15_A4}$"),
                                    partial(upload_csv, size=15, index_on=False, paving=True)),
-                    MessageHandler(filters.Regex("^20мм замостить$"),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.MM20_A4}$"),
                                    partial(upload_csv, size=20, index_on=False, paving=True)),
                     MessageHandler(filters.Regex(
-                        "^(?!Полноформатный$|15мм/стр$|20мм/стр$|15мм с нумерацией/стр$|20мм с нумерацией/стр$|"
-                        "15мм замостить$|20мм замостить$).*$"), cancel),
+                        f"^(?!{ModeButtons.FULL_FORMATTING}$|{ModeButtons.MM15}$|{ModeButtons.MM20}$|"
+                        f"{ModeButtons.MM15_NUM}$|{ModeButtons.MM20_NUM}$|"
+                        f"{ModeButtons.MM15_A4}$|{ModeButtons.MM20_A4}$).*$"), cancel),
                     MessageHandler(filters.Document.FileExtension("csv"), csv_file_handler)],
             FOURTH: [CommandHandler("cancel", cancel),
                      MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),
@@ -438,36 +458,32 @@ if __name__ == '__main__':
         entry_points=[CommandHandler('help', start_help_conversation_lv0),
                       CommandHandler('start', start_help_conversation_lv0)],
         states={
-            FIRST: [MessageHandler(filters.Regex("^EPS -> CSV$"), help_eps2csv_lv1),
-                    MessageHandler(filters.Regex("^CSV -> PDF$"), help_csv2pdf_lv1),
+            FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), help_eps2csv_lv1),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), help_csv2pdf_lv1),
 
-                    MessageHandler(filters.Regex("^(?!EPS -> CSV$|CSV -> PDF$).*$"), cancel), ],
-            SECOND: [MessageHandler(filters.Regex('zip с eps'),
+                    MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$).*$"), cancel), ],
+            SECOND: [MessageHandler(filters.Regex(f'{ModeButtons.ZIP}'),
                                     partial(help_download_sample_lv2,
                                             path='data/demo_samples/sample_eps2csv_archive_1000.zip')),
-                     MessageHandler(filters.Regex('Итоговый csv'),
+                     MessageHandler(filters.Regex(f'{ModeButtons.CSV}'),
                                     partial(help_download_sample_lv2,
                                             path='data/demo_samples/sample_eps2csv_result.csv')),
-                     MessageHandler(filters.Regex("^(?!zip с eps$|csv$).*$"), cancel), ],
-            THIRD: [MessageHandler(filters.Regex('csv 20мм'),
-                                   partial(help_download_sample_lv2,
-                                           path='data/demo_samples/sample_csv2pdf_15_20mm.csv')),
-                    MessageHandler(filters.Regex('csv'),
+                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.ZIP}$|{ModeButtons.CSV}$).*$"), cancel), ],
+            THIRD: [MessageHandler(filters.Regex(f'{ModeButtons.CSV}'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_full_info.csv')),
-                    MessageHandler(filters.Regex('pdf 20мм'),
+                    MessageHandler(filters.Regex(f'{ModeButtons.MM20}'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_20mm.pdf')),
-                    MessageHandler(filters.Regex('pdf 15мм', ),
+                    MessageHandler(filters.Regex(f'{ModeButtons.MM15}', ),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_15mm.pdf')),
-                    MessageHandler(filters.Regex('Полноформатный pdf'),
+                    MessageHandler(filters.Regex(f'{ModeButtons.FULL_FORMATTING}'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_full_info.pdf')),
-                    MessageHandler(filters.Regex("^(?!zip с eps$|"
-                                                 "csv$|"
-                                                 "csv 20мм$|pdf 15мм$|Итоговый csv$|"
-                                                 "Полноформатный pdf$).*$"), cancel),
+                    MessageHandler(filters.Regex(f"^(?!{ModeButtons.ZIP}$|{ModeButtons.CSV}$|"
+                                                 f"{ModeButtons.MM20}$|{ModeButtons.MM15}$|"
+                                                 f"{ModeButtons.FULL_FORMATTING}$).*$"), cancel),
                     ]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
