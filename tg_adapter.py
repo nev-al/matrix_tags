@@ -64,9 +64,8 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[f'{ModeButtons.FULL_FORMATTING}', f'{ModeButtons.MM15}', f'{ModeButtons.MM20}',
-                       f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}', f'{ModeButtons.MM15_A4}',
-                       f'{ModeButtons.MM20_A4}']]
+    reply_keyboard = [[f'{ModeButtons.FULL_FORMATTING}'], [f'{ModeButtons.MM15}', f'{ModeButtons.MM20}'],
+                       [f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}'], [f'{ModeButtons.MM15_A4}', f'{ModeButtons.MM20_A4}']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -177,7 +176,8 @@ async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFA
 >
 >Используйте меню для навигации и /help для просмотра этого сообщения еще раз\.||
         ''',
-        parse_mode='MarkdownV2', link_preview_options=LinkPreviewOptions(url='https://t.me/eps_csv_pdf/25', ),
+        parse_mode='MarkdownV2', link_preview_options=LinkPreviewOptions(url='https://t.me/eps_csv_pdf/25',
+                                                                         show_above_text=False,),
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True, ),
     )
     return FIRST
@@ -205,8 +205,8 @@ async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[f"{ModeButtons.CSV}", f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",
-                       f"{ModeButtons.FULL_FORMATTING}"]]
+    reply_keyboard = [[f"{ModeButtons.CSV}",  f"{ModeButtons.FULL_FORMATTING}"],
+                      [f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) csv-файл с кодами для преобразования '
                                         'в pdf-файл с полной информацией 2) csv-файл с кодами для получения 15 или '
