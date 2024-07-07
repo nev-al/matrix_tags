@@ -39,7 +39,9 @@ class ModeButtons(StrEnum):
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, ModeButtons.JSON]]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, KeyboardButton(
+                text="JSON",
+                web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg")),]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -417,7 +419,7 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), upload_zip),
                     MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), convert_csv2pdf_lv1),
-                    MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), web_app_run),
+                    MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$|"
                                                  f"{ModeButtons.JSON}$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
