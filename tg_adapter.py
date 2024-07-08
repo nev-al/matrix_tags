@@ -35,13 +35,16 @@ class ModeButtons(StrEnum):
     MM15_A4 = '15мм замостить',
     ZIP = 'ZIP',
     CSV = 'CSV',
+    CSV_SHORT = 'CSV#2',
 
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, KeyboardButton(
-                text="JSON",
-                web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg")),]]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF,
+                #        KeyboardButton(
+                # text="JSON",
+                # web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg"))
+                          ]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -207,8 +210,9 @@ async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[f"{ModeButtons.CSV}",  f"{ModeButtons.FULL_FORMATTING}"],
-                      [f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",]]
+    reply_keyboard = [[f"{ModeButtons.FULL_FORMATTING}"], [f"{ModeButtons.CSV}",  f"{ModeButtons.CSV_SHORT}"],
+                      [f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",],
+                      [f"{ModeButtons.MM15_A4}", f"{ModeButtons.MM20_NUM}"]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) csv-файл с кодами для преобразования '
                                         'в pdf-файл с полной информацией 2) csv-файл с кодами для получения 15 или '
@@ -407,6 +411,10 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def json_handler():
+    pass
+
+
 async def post_init(application: Application) -> None:
     await application.bot.set_my_commands([('convert', 'Начать преобразование'), ['cancel', 'Прервать диалог'],
                                            ('help', 'Показать справку')])
@@ -462,14 +470,23 @@ if __name__ == '__main__':
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$).*$"), cancel), ],
             SECOND: [MessageHandler(filters.Regex(f'{ModeButtons.ZIP}'),
                                     partial(help_download_sample_lv2,
-                                            path='data/demo_samples/sample_eps2csv_archive_1000.zip')),
+                                            path='data/demo_samples/sample_eps2csv_archive.zip')),
                      MessageHandler(filters.Regex(f'{ModeButtons.CSV}'),
                                     partial(help_download_sample_lv2,
                                             path='data/demo_samples/sample_eps2csv_result.csv')),
                      MessageHandler(filters.Regex(f"^(?!{ModeButtons.ZIP}$|{ModeButtons.CSV}$).*$"), cancel), ],
-            THIRD: [MessageHandler(filters.Regex(f'{ModeButtons.CSV}'),
+            THIRD: [MessageHandler(filters.Regex(f'{ModeButtons.CSV_SHORT}'),
+                                   partial(help_download_sample_lv2,
+                                           path='data/demo_samples/sample_csv2pdf_15_20mm.csv')),
+                    MessageHandler(filters.Regex(f'{ModeButtons.CSV}'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_full_info.csv')),
+                    MessageHandler(filters.Regex(f'{ModeButtons.MM20_NUM}'),
+                                   partial(help_download_sample_lv2,
+                                           path='data/demo_samples/sample_csv2pdf_label_20mm_num.pdf')),
+                    MessageHandler(filters.Regex(f'{ModeButtons.MM15_A4}'),
+                                   partial(help_download_sample_lv2,
+                                           path='data/demo_samples/sample_csv2pdf_label_15mm_a4.pdf')),
                     MessageHandler(filters.Regex(f'{ModeButtons.MM20}'),
                                    partial(help_download_sample_lv2,
                                            path='data/demo_samples/sample_csv2pdf_label_20mm.pdf')),
@@ -481,7 +498,8 @@ if __name__ == '__main__':
                                            path='data/demo_samples/sample_csv2pdf_label_full_info.pdf')),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.ZIP}$|{ModeButtons.CSV}$|"
                                                  f"{ModeButtons.MM20}$|{ModeButtons.MM15}$|"
-                                                 f"{ModeButtons.FULL_FORMATTING}$).*$"), cancel),
+                                                 f"{ModeButtons.FULL_FORMATTING}|{ModeButtons.CSV_SHORT}$|"
+                                                 f"{ModeButtons.MM20_NUM}$|{ModeButtons.MM15_A4}$).*$"), cancel),
                     ]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
