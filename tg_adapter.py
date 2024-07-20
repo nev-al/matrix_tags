@@ -19,7 +19,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
-FIRST, SECOND, THIRD, FOURTH, FIFTH = range(5)
+FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
 
 
 class ModeButtons(StrEnum):
@@ -40,11 +40,7 @@ class ModeButtons(StrEnum):
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF,
-                #        KeyboardButton(
-                # text="JSON",
-                # web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg"))
-                          ]]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, ModeButtons.JSON]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -70,7 +66,8 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
     reply_keyboard = [[f'{ModeButtons.FULL_FORMATTING}'], [f'{ModeButtons.MM15}', f'{ModeButtons.MM20}'],
-                       [f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}'], [f'{ModeButtons.MM15_A4}', f'{ModeButtons.MM20_A4}']]
+                      [f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}'],
+                      [f'{ModeButtons.MM15_A4}', f'{ModeButtons.MM20_A4}']]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -181,8 +178,8 @@ async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFA
 >
 >Используйте меню для навигации и /help для просмотра этого сообщения еще раз\.||
         ''',
-        parse_mode='MarkdownV2', link_preview_options=LinkPreviewOptions(url='https://t.me/eps_csv_pdf/25',
-                                                                         show_above_text=False,),
+        parse_mode='MarkdownV2', link_preview_options=LinkPreviewOptions(url='https://t.me/eps_csv_pdf/28?single',
+                                                                         show_above_text=False, ),
         reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True, resize_keyboard=True, ),
     )
     return FIRST
@@ -210,8 +207,8 @@ async def help_eps2csv_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[f"{ModeButtons.FULL_FORMATTING}"], [f"{ModeButtons.CSV}",  f"{ModeButtons.CSV_SHORT}"],
-                      [f"{ModeButtons.MM15}", f"{ModeButtons.MM20}",],
+    reply_keyboard = [[f"{ModeButtons.FULL_FORMATTING}"], [f"{ModeButtons.CSV}", f"{ModeButtons.CSV_SHORT}"],
+                      [f"{ModeButtons.MM15}", f"{ModeButtons.MM20}", ],
                       [f"{ModeButtons.MM15_A4}", f"{ModeButtons.MM20_NUM}"]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='Здесь можно получить примеры файлов: 1) csv-файл с кодами для преобразования '
@@ -382,25 +379,12 @@ async def zip_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-async def web_app_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f'web_app_run, user {update.effective_chat.id} {update.effective_user.full_name}')
-    await update.message.reply_text(
-        "Выберите:",
-        reply_markup=ReplyKeyboardMarkup.from_button(
-            KeyboardButton(
-                text="JSON",
-                web_app=WebAppInfo(url="https://vps658a992f8c340385650937.noezserver.de/js/tg"),
-            )
-        ),
-    )
-    return FIFTH
-
-
 async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'web_app_data, user {update.effective_chat.id} {update.effective_user.full_name}')
     user_json_filepath = Path(f'data/user_{update.effective_user.id}/json_{uuid.uuid4()}.json')
     user_json_filepath.parent.mkdir(parents=True, exist_ok=True)
     data = json.loads(update.effective_message.web_app_data.data)
+    data['products'] = context.user_data['xlsx_data']
     await update.message.reply_html(text=f"Данные получены", reply_markup=ReplyKeyboardRemove(), )
     data_trimmed = {k: v for k, v in data.items() if v}
     with open(user_json_filepath, "w") as json_file:
@@ -411,8 +395,40 @@ async def web_app_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-async def json_handler():
-    pass
+async def json_handler_upload_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'json_handler_upload_file, user {update.effective_chat.id} {update.effective_user.full_name}')
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте файл.",
+                                   reply_markup=ReplyKeyboardRemove())
+    context.user_data["waiting_for_xlsx"] = True
+    return FIFTH
+
+
+async def json_handler_file_processing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'json_handler_file_processing, user {update.effective_chat.id} {update.effective_user.full_name}')
+    user_xlsx_filepath = Path(f'data/user_{update.effective_user.id}/xlsx_{uuid.uuid4()}.xlsx')
+    user_xlsx_filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    if context.user_data.get("waiting_for_xlsx", False):
+        try:
+            file = await update.message.document.get_file()
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id,
+                                               action=telegram.constants.ChatAction.TYPING)
+        except telegram.error.BadRequest:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ошибка.")
+            return ConversationHandler.END
+
+        if file.file_path.endswith('.xlsx'):
+            await file.download_to_drive(user_xlsx_filepath)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"XLSX получен.")
+            context.user_data["xlsx_data"] = xlsx_file_exctract_data(user_xlsx_filepath)
+            delete_files([user_xlsx_filepath, ])
+            await update.message.reply_text(
+                "Выберите:",
+                reply_markup=ReplyKeyboardMarkup.from_button(KeyboardButton(text="Вывод из оборота", web_app=WebAppInfo
+                (url=f"https://vps658a992f8c340385650937.noezserver.de/js/withdraw"), )), )
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только xlsx-файлы.")
+    return SIXTH
 
 
 async def post_init(application: Application) -> None:
@@ -427,7 +443,7 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), upload_zip),
                     MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), convert_csv2pdf_lv1),
-                    MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), json_handler_upload_file),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$|"
                                                  f"{ModeButtons.JSON}$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
@@ -455,7 +471,11 @@ if __name__ == '__main__':
             FOURTH: [CommandHandler("cancel", cancel),
                      MessageHandler(filters.Regex("^(?!Отмена$).*$"), convert_csv2pdf_full_info_handler_lv2),
                      MessageHandler(filters.Regex('Отмена'), cancel), ],
-            FIFTH: [MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data)],
+            FIFTH: [
+                MessageHandler(filters.Regex("^(?!Загрузить xlsx$).*$"), cancel),
+                MessageHandler(filters.Document.FileExtension('xlsx'), json_handler_file_processing) ],
+            SIXTH: [
+                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data) ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )

@@ -2,6 +2,7 @@ import csv
 import logging
 import time
 import re
+from openpyxl import load_workbook
 
 
 logging.basicConfig(filename='logs.txt', filemode='a',
@@ -129,15 +130,16 @@ def csv_file_row_count(csv_file_path):
         return len(file.readlines())
 
 
+def xlsx_file_exctract_data(xlsx_file_path):
+    wb = load_workbook(xlsx_file_path)
+    ws = wb.active
+    result_list = []
+    for row in ws.iter_rows(min_row=2, min_col=2, max_col=3, values_only=True):
+        result_list.append({'cis': row[1], 'product_cost': row[0] if row[0] else ''})
+    return result_list
+
+
 if __name__ == '__main__':
-    # str = '0104620236343458215/FFUr)rA2i419100C292gEK2RSV7/UA09NiQlGA4YFxdmziUMFmNgCtNu+fsfHODHLsu97Plx0UyZeUkM5QC1Yak/j3w1PKh96nCwQ1hqg=='
-    # print(has_x1d_before_91_92(str))
-
-    # res = group_by_gtin('/home/usr/PycharmProjects/matrix_tags/data/csv_sample_bigger.csv')
-
-    # res = join_strings(csv_file_path='170141723.csv', txt_file_path='170141723.txt', output_file_path='out.csv')
-    # print(res)
-
     file_path = 'data/other_files/test_regex.csv'
     res = gtin_set(file_path)
     # res = incorrect_csv_file_codes_count(file_path)
