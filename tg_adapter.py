@@ -19,10 +19,11 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
-FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH = range(6)
+FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH, SEVENTH = range(7)
 
 
 class ModeButtons(StrEnum):
+    EPS2PDF = "EPS -> PDF",
     EPS2CSV = "EPS -> CSV",
     CSV2PDF = "CSV -> PDF",
     JSON = "JSON",
@@ -40,7 +41,9 @@ class ModeButtons(StrEnum):
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'start_conv_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, ModeButtons.JSON]]
+    context.user_data.clear()
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF,],
+                      [ModeButtons.EPS2PDF, ModeButtons.JSON, ]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -65,9 +68,9 @@ async def start_conversation_handler_lv0(update: Update, context: ContextTypes.D
 
 async def convert_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'convert_csv2pdf, user {update.effective_chat.id} {update.effective_user.full_name}')
-    reply_keyboard = [[f'{ModeButtons.FULL_FORMATTING}'], [f'{ModeButtons.MM15}', f'{ModeButtons.MM20}'],
-                      [f'{ModeButtons.MM15_NUM}', f'{ModeButtons.MM20_NUM}'],
-                      [f'{ModeButtons.MM15_A4}', f'{ModeButtons.MM20_A4}']]
+    reply_keyboard = [[ModeButtons.FULL_FORMATTING], [ModeButtons.MM15, ModeButtons.MM20],
+                      [ModeButtons.MM15_NUM, ModeButtons.MM20_NUM],
+                      [ModeButtons.MM15_A4, ModeButtons.MM20_A4]]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -138,6 +141,7 @@ async def convert_csv2pdf_full_info_done_input_lv2(update: Update, context: Cont
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'cancel, user {update.effective_chat.id} {update.effective_user.full_name}')
+    context.user_data.clear()
     await update.message.reply_text(
         "Процесс прерван.", reply_markup=ReplyKeyboardRemove()
     )
@@ -146,6 +150,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'help_message, user {update.effective_chat.id} {update.effective_user.full_name}')
+    context.user_data.clear()
     reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF]]
     await update.message.reply_text(
         '''
@@ -232,68 +237,99 @@ async def help_download_sample_lv2(update: Update, context: ContextTypes.DEFAULT
 
 
 async def upload_csv(update: Update, context: ContextTypes.DEFAULT_TYPE, size, index_on, paving):
-    logger.info(f'upload_csv, user {update.effective_chat.id} {update.effective_user.full_name}')
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте csv-файл.",
-                                   reply_markup=ReplyKeyboardRemove())
+    logger.info(f'upload_csv, user {update.effective_chat.id} {update.effective_user.full_name},'
+                f'user_data: {context.user_data}')
     context.user_data["waiting_for_csv"] = True
     context.user_data['size'] = size
     context.user_data['index_on'] = index_on
     context.user_data['paving'] = paving
+    if context.user_data["upload_zip_mode"] == 'eps2csv':
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте csv-файл.",
+                                       reply_markup=ReplyKeyboardRemove())
+    elif context.user_data["upload_zip_mode"] == 'eps2pdf':
+        return await csv_file_handler(update, context)
 
 
 async def csv_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'csv_file_handler, user {update.effective_chat.id} {update.effective_user.full_name}')
-    user_csv_filepath = Path(f'data/user_{update.effective_user.id}/csv_{uuid.uuid4()}.csv')
-    user_csv_filepath.parent.mkdir(parents=True, exist_ok=True)
-    context.user_data['user_csv_filepath'] = user_csv_filepath
     result_pdf_filepath = f'data/user_{update.effective_user.id}/result_pdf_{uuid.uuid4()}.pdf'
-    if context.user_data.get("waiting_for_csv", False) and context.user_data['size'] is not None:
-        file = await update.message.document.get_file()
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id,
-                                           action=telegram.constants.ChatAction.TYPING)
-        if file.file_path.endswith('.csv'):
-            await file.download_to_drive(user_csv_filepath)
-            await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=f"CSV файл получен.", )
+    if context.user_data["upload_zip_mode"] == 'eps2pdf':
+        user_csv_filepath = context.user_data['upload_zip_eps2pdf_mode_csv_filepath']
+        context.user_data['user_csv_filepath'] = context.user_data['upload_zip_eps2pdf_mode_csv_filepath']
+        if context.user_data['size'] == 100 and not context.user_data['paving']:
+            await csv_file_full_info_handler(update, context, user_csv_filepath)
+            return FOURTH
+        elif (context.user_data['size'] == 20 or 15) and not context.user_data['paving']:
+            logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
+                        f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                        f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+            generate_label_15_20mm_per_page(user_csv_filepath, output_file=result_pdf_filepath,
+                                            label_size=int(context.user_data['size']),
+                                            index_on=context.user_data['index_on'])
+        elif (context.user_data['size'] == 20 or 15) and context.user_data['paving']:
+            logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
+                        f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                        f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+            generate_label_15_20mm_paving_a4(user_csv_filepath, output_file=result_pdf_filepath,
+                                             label_size=int(context.user_data['size']),
+                                             index_on=context.user_data['index_on'])
+        with open(result_pdf_filepath, "rb") as pdf_file:
+            await context.bot.send_document(chat_id=update.effective_chat.id,
+                                            document=pdf_file, caption="pdf-файл доступен для загрузки.")
+        delete_files([result_pdf_filepath, ])
+        context.user_data["waiting_for_csv"] = False
 
-            row_count, incorrect_codes_count = csv_file_row_count(user_csv_filepath), \
-                incorrect_csv_file_codes_count(user_csv_filepath)
-            if row_count == incorrect_codes_count:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f"Нет корректных данных.")
-                return ConversationHandler.END
-
-            if row_count > incorrect_codes_count > 0:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f"Ваш csv-файл содержит некорректные коды. "
-                                                    f"Генерация для таких данных не происходит.")
+    else:
+        user_csv_filepath = Path(f'data/user_{update.effective_user.id}/csv_{uuid.uuid4()}.csv')
+        user_csv_filepath.parent.mkdir(parents=True, exist_ok=True)
+        context.user_data['user_csv_filepath'] = user_csv_filepath
+        if context.user_data.get("waiting_for_csv", False) and context.user_data['size'] is not None:
+            file = await update.message.document.get_file()
             await context.bot.send_chat_action(chat_id=update.effective_chat.id,
                                                action=telegram.constants.ChatAction.TYPING)
-            if context.user_data['size'] == 100 and not context.user_data['paving']:
-                await csv_file_full_info_handler(update, context, user_csv_filepath)
-                return FOURTH
-            elif (context.user_data['size'] == 20 or 15) and not context.user_data['paving']:
-                logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
-                            f"{update.effective_user.full_name} size {context.user_data['size']}, "
-                            f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
-                generate_label_15_20mm_per_page(user_csv_filepath, output_file=result_pdf_filepath,
-                                                label_size=int(context.user_data['size']),
-                                                index_on=context.user_data['index_on'])
-            elif (context.user_data['size'] == 20 or 15) and context.user_data['paving']:
-                logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
-                            f"{update.effective_user.full_name} size {context.user_data['size']}, "
-                            f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
-                generate_label_15_20mm_paving_a4(user_csv_filepath, output_file=result_pdf_filepath,
-                                                 label_size=int(context.user_data['size']),
-                                                 index_on=context.user_data['index_on'])
-            with open(result_pdf_filepath, "rb") as pdf_file:
-                await context.bot.send_document(chat_id=update.effective_chat.id,
-                                                document=pdf_file, caption="pdf-файл доступен для загрузки.")
-            delete_files([result_pdf_filepath, ])
-            context.user_data["waiting_for_csv"] = False
-        else:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только csv-файлы.")
-    logger.info(f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
+            if file.file_path.endswith('.csv'):
+                await file.download_to_drive(user_csv_filepath)
+                await context.bot.send_message(chat_id=update.effective_chat.id,
+                                               text=f"CSV файл получен.", )
+
+                row_count, incorrect_codes_count = csv_file_row_count(user_csv_filepath), \
+                    incorrect_csv_file_codes_count(user_csv_filepath)
+                if row_count == incorrect_codes_count:
+                    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                                   text=f"Нет корректных данных.")
+                    return ConversationHandler.END
+
+                if row_count > incorrect_codes_count > 0:
+                    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                                   text=f"Ваш csv-файл содержит некорректные коды. "
+                                                        f"Генерация для таких данных не происходит.")
+                await context.bot.send_chat_action(chat_id=update.effective_chat.id,
+                                                   action=telegram.constants.ChatAction.TYPING)
+                if context.user_data['size'] == 100 and not context.user_data['paving']:
+                    await csv_file_full_info_handler(update, context, user_csv_filepath)
+                    return FOURTH
+                elif (context.user_data['size'] == 20 or 15) and not context.user_data['paving']:
+                    logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
+                                f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                                f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+                    generate_label_15_20mm_per_page(user_csv_filepath, output_file=result_pdf_filepath,
+                                                    label_size=int(context.user_data['size']),
+                                                    index_on=context.user_data['index_on'])
+                elif (context.user_data['size'] == 20 or 15) and context.user_data['paving']:
+                    logger.info(f'csv_file_handler - 15/20mm mode, user {update.effective_chat.id} '
+                                f"{update.effective_user.full_name} size {context.user_data['size']}, "
+                                f"index_on {context.user_data['index_on']}, paving {context.user_data['paving']} ")
+                    generate_label_15_20mm_paving_a4(user_csv_filepath, output_file=result_pdf_filepath,
+                                                     label_size=int(context.user_data['size']),
+                                                     index_on=context.user_data['index_on'])
+                with open(result_pdf_filepath, "rb") as pdf_file:
+                    await context.bot.send_document(chat_id=update.effective_chat.id,
+                                                    document=pdf_file, caption="pdf-файл доступен для загрузки.")
+                delete_files([result_pdf_filepath, ])
+                context.user_data["waiting_for_csv"] = False
+            else:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только csv-файлы.")
+        logger.info(f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
     return ConversationHandler.END
 
 
@@ -322,7 +358,7 @@ async def csv_file_full_info_handler(update: Update, context: ContextTypes.DEFAU
         f'csv_file_handler finishes, user {update.effective_chat.id} {update.effective_user.full_name}')
 
 
-async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE, mode):
     logger.info(f'upload_zip, user {update.effective_chat.id} {update.effective_user.full_name}')
 
     # user_id = update.effective_user.id
@@ -334,6 +370,7 @@ async def upload_zip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте zip-файл. Размер не более 20 Мб.",
                                    reply_markup=ReplyKeyboardRemove())
+    context.user_data["upload_zip_mode"] = mode
     context.user_data["waiting_for_zip"] = True
     return SECOND
 
@@ -368,10 +405,24 @@ async def zip_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                            text=f'Времени затрачено на конвертацию: {time.time() - start:.1f} сек.')
             logger.info(f'zip_file_handler, eps2csv took {time.time() - start:.1f} sec for user '
                         f'{update.effective_chat.id} {update.effective_user.full_name}')
-            with open(user_csv_filepath, "rb") as csv_file:
-                await context.bot.send_document(chat_id=update.effective_chat.id,
-                                                document=csv_file, caption="csv-файл готов для загрузки.")
-            delete_files([user_zip_filepath, ])
+            if context.user_data["upload_zip_mode"] == 'eps2csv':
+                with open(user_csv_filepath, "rb") as csv_file:
+                    await context.bot.send_document(chat_id=update.effective_chat.id,
+                                                    document=csv_file, caption="csv-файл готов для загрузки.")
+                delete_files([user_zip_filepath, ])
+            else:
+                context.user_data["upload_zip_eps2pdf_mode_csv_filepath"] = user_csv_filepath
+                reply_keyboard = [[ModeButtons.FULL_FORMATTING], [ModeButtons.MM15, ModeButtons.MM20],
+                                  [ModeButtons.MM15_NUM, ModeButtons.MM20_NUM],
+                                  [ModeButtons.MM15_A4, ModeButtons.MM20_A4]]
+                await update.message.reply_text(
+                    'Выберите:',
+                    reply_markup=ReplyKeyboardMarkup(
+                        reply_keyboard, one_time_keyboard=True,
+                        resize_keyboard=True,
+                    ),
+                )
+                return THIRD
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только zip-файлы.")
 
@@ -441,11 +492,12 @@ if __name__ == '__main__':
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("convert", start_conversation_handler_lv0)],
         states={
-            FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), upload_zip),
+            FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), partial(upload_zip, mode='eps2csv')),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.EPS2PDF}$"), partial(upload_zip, mode='eps2pdf')),
                     MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), convert_csv2pdf_lv1),
                     MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), json_handler_upload_file),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$|"
-                                                 f"{ModeButtons.JSON}$).*$"), cancel), ],
+                                                 f"{ModeButtons.JSON}$|{ModeButtons.EPS2PDF}$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
@@ -475,6 +527,8 @@ if __name__ == '__main__':
                 MessageHandler(filters.Regex("^(?!Загрузить xlsx$).*$"), cancel),
                 MessageHandler(filters.Document.FileExtension('xlsx'), json_handler_file_processing) ],
             SIXTH: [
+                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data) ],
+            SEVENTH: [
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data) ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
