@@ -130,13 +130,33 @@ def csv_file_row_count(csv_file_path):
         return len(file.readlines())
 
 
+def is_cis_in_xlsx_file_okay(cis):
+    pattern = r"^01(?P<gtin>\d{14})21(?P<serial>[\w!\"%&'()*+,\-./_:;=<>?]{6}|[\w!\"%&'()*+,\-./_:;=<>?]{7}|" \
+                    r"[\w!\"%&'()*+,\-./_:;=<>?]{13})$"
+    return re.search(pattern, cis) is not None
+
+
+def fix_xlsx_file_product_cost_value(value):
+    if value.find('.') > -1:
+        return int(value.replace('.', ''))
+    elif value.find(',') > -1:
+        return int(value.replace(',', ''))
+    else:
+        return int(value) * 100
+
+
 def xlsx_file_exctract_data(xlsx_file_path):
+    # TODO: add check for codes in xlsx
     wb = load_workbook(xlsx_file_path)
     ws = wb.active
     result_list = []
+    error_count = 0
     for row in ws.iter_rows(min_row=2, min_col=2, max_col=3, values_only=True):
-        result_list.append({'cis': row[1], 'product_cost': row[0] if row[0] else ''})
-    return result_list
+        result_list.append({'cis': row[1], 'product_cost': fix_xlsx_file_product_cost_value(row[0]) if row[0] else ''})
+        if not is_cis_in_xlsx_file_okay(row[1]):
+            error_count += 1
+    error_code = 'no_errors' if error_count == 0 else 'errors'
+    return result_list, error_code
 
 
 if __name__ == '__main__':

@@ -129,7 +129,7 @@ def generate_label_15_20mm_per_page(csv_file_path, label_size, output_file, inde
     c.save()
 
 
-def generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file='test_15_20mm_paving.pdf', index_on=False):
+def generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file, index_on):
     MAX_PIECES = 266 if label_size == 15 else 140
     label_width, label_height = A4
     c = canvas.Canvas(output_file, pagesize=(label_width, label_height))
@@ -164,6 +164,13 @@ def generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file='tes
         # frames_list[img_index].addFromList([Paragraph(f'{index}'), ], c)
         index += 1
     c.save()
+
+
+def generate_label_15_20mm(csv_file_path, label_size, output_file, index_on, paving):
+    if paving:
+        generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file, index_on)
+    else:
+        generate_label_15_20mm_per_page(csv_file_path, label_size, output_file, index_on)
 
 
 def divide_sheet(dmtx_size=20):
