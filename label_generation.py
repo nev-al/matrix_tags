@@ -42,7 +42,7 @@ def generate_label_full_info(csv_file_path, filename='test_label_bigger.pdf'):
 
     for entry in data:
         code, name, size, unit_type, sex, madeof, color, model, country, tp_ts = entry
-        img = generate_datamatrix(code)
+        img = generate_datamatrix('\x1d' + code)
         img_bytes = BytesIO()
         img.save(img_bytes, format='PNG')
         img_bytes.seek(0)
@@ -113,7 +113,7 @@ def generate_label_15_20mm_per_page(csv_file_path, label_size, output_file, inde
         for string in data_codes:
             result = find_datacode(string)
             if result:
-                img = generate_datamatrix(result)
+                img = generate_datamatrix('\x1d' + result)
                 img_bytes = BytesIO()
                 img.save(img_bytes, format='PNG')
                 img_bytes.seek(0)
@@ -141,7 +141,7 @@ def generate_label_15_20mm_paving_a4(csv_file_path, label_size, output_file, ind
         for string in data_codes:
             result = find_datacode(string)
             if result:
-                img = generate_datamatrix(result)
+                img = generate_datamatrix('\x1d' + result)
                 img_bytes = BytesIO()
                 img.save(img_bytes, format='PNG')
                 img_bytes.seek(0)

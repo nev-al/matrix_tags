@@ -403,7 +403,7 @@ async def zip_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 with open(user_csv_filepath, "rb") as csv_file:
                     await context.bot.send_document(chat_id=update.effective_chat.id,
                                                     document=csv_file, caption="csv-файл готов для загрузки.")
-                delete_files([user_zip_filepath, ])
+                # delete_files([user_zip_filepath, ])
             else:
                 context.user_data["upload_zip_eps2pdf_mode_csv_filepath"] = user_csv_filepath
                 reply_keyboard = [[ModeButtons.FULL_FORMATTING], [ModeButtons.MM15, ModeButtons.MM20],
@@ -473,7 +473,7 @@ async def json_handler_file_processing(update: Update, context: ContextTypes.DEF
             await file.download_to_drive(user_xlsx_filepath)
             await context.bot.send_message(chat_id=update.effective_chat.id, text=f"XLSX получен.")
             context.user_data['xlsx_data'] = xlsx_file_exctract_data(user_xlsx_filepath)
-            delete_files([user_xlsx_filepath, ])
+            # delete_files([user_xlsx_filepath, ])
             await update.message.reply_text(
                 "Выберите:",
                 reply_markup=ReplyKeyboardMarkup.from_button(KeyboardButton(text="Вывод из оборота", web_app=WebAppInfo
