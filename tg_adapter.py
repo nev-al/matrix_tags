@@ -37,6 +37,7 @@ class ModeButtons(StrEnum):
     ZIP = 'ZIP',
     CSV = 'CSV',
     CSV_SHORT = 'CSV#2',
+    XLSX = 'XLSX',
 
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -152,7 +153,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def start_help_conversation_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f'[help_message]  --  user: {update.effective_user.id}, {update.effective_user.full_name}')
     context.user_data.clear()
-    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF]]
+    reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF],
+                      [ModeButtons.JSON]]
     await update.message.reply_text(
         '''
 *Доступные команды:*
@@ -218,6 +220,17 @@ async def help_csv2pdf_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                        reply_keyboard, one_time_keyboard=True, resize_keyboard=True
                                    ))
     return THIRD
+
+
+async def help_xlsx2json_lv1(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'[help_xlsx2json_lv1]  --  user: {update.effective_user.id}, {update.effective_user.full_name}')
+    reply_keyboard = [[f"{ModeButtons.XLSX}", f"{ModeButtons.JSON}", ]]
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text='Здесь можно получить примеры файлов: 1) xlsx, 2) json',
+                                   reply_markup=ReplyKeyboardMarkup(
+                                       reply_keyboard, one_time_keyboard=True, resize_keyboard=True
+                                   ))
+    return FOURTH
 
 
 async def help_download_sample_lv2(update: Update, context: ContextTypes.DEFAULT_TYPE, path):
@@ -528,7 +541,7 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), help_eps2csv_lv1),
                     MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), help_csv2pdf_lv1),
-
+                    MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), help_xlsx2json_lv1),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$).*$"), cancel), ],
             SECOND: [MessageHandler(filters.Regex(f'{ModeButtons.ZIP}'),
                                     partial(help_download_sample_lv2,
@@ -562,7 +575,16 @@ if __name__ == '__main__':
                                                  f"{ModeButtons.MM20}$|{ModeButtons.MM15}$|"
                                                  f"{ModeButtons.FULL_FORMATTING}|{ModeButtons.CSV_SHORT}$|"
                                                  f"{ModeButtons.MM20_NUM}$|{ModeButtons.MM15_A4}$).*$"), cancel),
-                    ]
+                    ],
+            FOURTH: [
+                 MessageHandler(filters.Regex(f'{ModeButtons.XLSX}'),
+                                partial(help_download_sample_lv2,
+                                        path='data/demo_samples/sample_xlsx2json.xlsx')),
+                 MessageHandler(filters.Regex(f'{ModeButtons.JSON}'),
+                                partial(help_download_sample_lv2,
+                                        path='data/demo_samples/sample_xlsx2json.json')),
+                 MessageHandler(filters.Regex(f"^(?!{ModeButtons.XLSX}$|{ModeButtons.JSON}$).*$"), cancel),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
