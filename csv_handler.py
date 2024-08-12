@@ -3,6 +3,7 @@ import logging
 import time
 import re
 from openpyxl import load_workbook
+import pandas as pd
 
 
 logging.basicConfig(filename='logs.txt', filemode='a',
@@ -70,6 +71,40 @@ def find_datacode(string, mode=0) -> str:
         return short_match.group(mode)
     elif nicotine_match:
         return nicotine_match.group(mode)
+    else:
+        return ''
+
+
+def find_datacode_without_validation_key(string) -> str:
+    """
+    :param string:
+    :param mode: 0 = matched string, 1 = gtin only, 2 = serial number only
+    :return:
+    """
+
+    encoded_string = string.replace('\\x1d', '\x1d')
+
+    long_pattern = r"01(?P<gtin>\d{14})21(?P<serial>[\w!\"%&'()*+,\-./_:;=<>?]{6}|[\w!\"%&'()*+,\-./_:;=<>?]{13}|" \
+                   r"[\w!\"%&'()*+,\-./_:;=<>?]{20})\x1d91(?P<validation_key>[\w!\"%&'()*+,\-./_:;=<>?]{4})\x1d92" \
+                   r"(?P<validation_code>[\w!\"%&'()*+,\-./_:;=<>?]{44}|[\w!\"%&'()*+,\-./_:;=<>?]{88})"
+
+    short_pattern = r"01(?P<gtin>\d{14})21(?P<serial>[\w!\"%&'()*+,\-./_:;=<>?]{6}|[\w!\"%&'()*+,\-./_:;=<>?]{7}|" \
+                    r"[\w!\"%&'()*+,\-./_:;=<>?]{13})\x1d93(?P<validation_code>[\w!\"%&'()*+,\-./_:;=<>?]{4}|" \
+                    r"[\w!\"%&'()*+,\-./_:;=<>?]{7})(?P<suffix>\d{10})?"
+
+    nicotine_pattern = r"01(?P<gtin>\d{14})21(?P<serial>[\w!\"%&'()*+,\-./_:;=<>?]{7})8005(?P<max_price>" \
+                       r"[\w!\"%&'()*+,\-./_:;=<>?]{6})\x1d93(?P<validation_code>[\w!\"%&'()*+,\-./_:;=<>?]{4})"
+
+    long_match = re.search(long_pattern, encoded_string)
+    short_match = re.search(short_pattern, encoded_string)
+    nicotine_match = re.search(nicotine_pattern, encoded_string)
+
+    if long_match:
+        return re.sub(r'\x1d91.*', '', long_match.group(0))
+    elif short_match:
+        return re.sub(r'\x1d93.*', '', short_match.group(0))
+    elif nicotine_match:
+        return re.sub(r'\x1d93.*', '', nicotine_match.group(0))
     else:
         return ''
 
@@ -157,6 +192,14 @@ def xlsx_file_exctract_data(xlsx_file_path):
             error_count += 1
     error_code = 'no_errors' if error_count == 0 else 'errors'
     return result_list, error_code
+
+
+def csv2xlsx_convert(csv_file_path, xlsx_file_path):
+    # TODO: complete this out
+    data = pd.read_csv(csv_file_path, sep='\t', lineterminator='\n', header=None)
+    data['extracted'] = data[0].apply(find_datacode_without_validation_key)
+    data['result'] = data['extracted'].apply(lambda x: x.replace('\x1d', ''))
+    data[['result']].to_excel(xlsx_file_path, index=False, header=None)
 
 
 if __name__ == '__main__':

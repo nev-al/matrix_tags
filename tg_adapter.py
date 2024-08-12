@@ -11,6 +11,7 @@ from label_generation import generate_label_full_info, generate_label_15_20mm
 from csv_handler import *
 from db_adapter import *
 import time
+import os
 from enum import StrEnum
 
 logging.basicConfig(filename='logs.txt', filemode='a',
@@ -19,7 +20,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
-FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH, SEVENTH = range(7)
+FIRST, SECOND, THIRD, FOURTH, FIFTH, SIXTH, SEVENTH, EIGTH = range(8)
 
 
 class ModeButtons(StrEnum):
@@ -38,13 +39,16 @@ class ModeButtons(StrEnum):
     CSV = 'CSV',
     CSV_SHORT = 'CSV#2',
     XLSX = 'XLSX',
+    EPS2XLSX = 'EPS -> XLSX',
+    CSV2XLSX = 'CSV -> XLSX',
 
 
 async def start_conversation_handler_lv0(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     logger.info(f'[start_conv_handler]  --  user: {update.effective_user.id}, {update.effective_user.full_name}')
     context.user_data.clear()
     reply_keyboard = [[ModeButtons.EPS2CSV, ModeButtons.CSV2PDF, ],
-                      [ModeButtons.EPS2PDF, ModeButtons.JSON, ]]
+                      [ModeButtons.EPS2PDF, ModeButtons.JSON, ],
+                      [ModeButtons.EPS2XLSX, ModeButtons.CSV2XLSX, ], ]
     await update.message.reply_text(
         'Выберите:',
         reply_markup=ReplyKeyboardMarkup(
@@ -395,15 +399,20 @@ async def zip_file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             start = time.time()
             await handle_zip(zip_filepath=user_zip_filepath, csv_filepath=user_csv_filepath,
                              work_directory_path=handle_zip_working_directory_path)
-            await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=f'Времени затрачено на конвертацию: {time.time() - start:.1f} сек.')
+            # await context.bot.send_message(chat_id=update.effective_chat.id,
+            #                                text=f'Времени затрачено на конвертацию: {time.time() - start:.1f} сек.')
             logger.info(f'[zip_file_handler], eps2csv took {time.time() - start:.1f} sec for user '
                         f'{update.effective_chat.id} {update.effective_user.full_name}')
             if context.user_data["upload_zip_mode"] == 'eps2csv':
-                with open(user_csv_filepath, "rb") as csv_file:
-                    await context.bot.send_document(chat_id=update.effective_chat.id,
-                                                    document=csv_file, caption="csv-файл готов для загрузки.")
-                # delete_files([user_zip_filepath, ])
+                if os.stat(user_csv_filepath).st_size != 0:
+                    with open(user_csv_filepath, "rb") as csv_file:
+                        # TODO: what if zip file was empty or contained incorrect files? it must not be void
+                        await context.bot.send_document(chat_id=update.effective_chat.id,
+                                                        document=csv_file, caption="csv-файл готов для загрузки.")
+                    # delete_files([user_zip_filepath, ])
+                else:
+                    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                                   text=f'Ошибка. Проверьте исходные данные.')
             else:
                 context.user_data["upload_zip_eps2pdf_mode_csv_filepath"] = user_csv_filepath
                 reply_keyboard = [[ModeButtons.FULL_FORMATTING], [ModeButtons.MM15, ModeButtons.MM20],
@@ -456,7 +465,8 @@ async def json_handler_upload_file(update: Update, context: ContextTypes.DEFAULT
 
 
 async def json_handler_file_processing(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.info(f'[json_handler_file_processing]  --  user: {update.effective_user.id}, {update.effective_user.full_name}')
+    logger.info(f'[json_handler_file_processing]  --  user: {update.effective_user.id}, '
+                f'{update.effective_user.full_name}')
     user_xlsx_filepath = Path(f'data/user_{update.effective_user.id}/xlsx_{uuid.uuid4()}.xlsx')
     user_xlsx_filepath.parent.mkdir(parents=True, exist_ok=True)
 
@@ -483,6 +493,54 @@ async def json_handler_file_processing(update: Update, context: ContextTypes.DEF
     return SIXTH
 
 
+async def csv2xlsx_upload_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'[csv2xlsx_upload_file]  --  user: {update.effective_user.id}, {update.effective_user.full_name}')
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправьте файл.",
+                                   reply_markup=ReplyKeyboardRemove())
+    context.user_data["waiting_for_file"] = True
+    return EIGTH
+
+
+async def convert_csv2xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info(f'[json_handler_file_processing]  --  user: {update.effective_user.id}, '
+                f'{update.effective_user.full_name}')
+    user_xlsx_filepath = Path(f'data/user_{update.effective_user.id}/xlsx_{uuid.uuid4()}.xlsx')
+    user_xlsx_filepath.parent.mkdir(parents=True, exist_ok=True)
+    user_csv_filepath = Path(f'data/user_{update.effective_user.id}/csv_{uuid.uuid4()}.csv')
+    user_zip_filepath = Path(f'data/user_{update.effective_user.id}/zip_{uuid.uuid4()}.zip')
+    handle_zip_working_directory_path = Path(f'data/user_{update.effective_user.id}/data_{uuid.uuid4()}')
+
+    if context.user_data.get("waiting_for_file", False):
+        try:
+            file = await update.message.document.get_file()
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id,
+                                               action=telegram.constants.ChatAction.TYPING)
+        except telegram.error.BadRequest:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Ошибка.")
+            return ConversationHandler.END
+
+        if file.file_path.endswith('.csv'):
+            await file.download_to_drive(user_csv_filepath)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"CSV получен.")
+            csv2xlsx_convert(user_csv_filepath, user_xlsx_filepath)
+            with open(user_xlsx_filepath, "rb") as xlsx_file:
+                await context.bot.send_document(chat_id=update.effective_chat.id,
+                                                document=xlsx_file, caption="xlsx-файл готов для загрузки.")
+        elif file.file_path.endswith('.zip'):
+            await file.download_to_drive(user_zip_filepath)
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"ZIP получен.")
+            await handle_zip(zip_filepath=user_zip_filepath, csv_filepath=user_csv_filepath,
+                             work_directory_path=handle_zip_working_directory_path)
+            csv2xlsx_convert(user_csv_filepath, user_xlsx_filepath)
+            with open(user_xlsx_filepath, "rb") as xlsx_file:
+                await context.bot.send_document(chat_id=update.effective_chat.id,
+                                                document=xlsx_file, caption="xlsx-файл готов для загрузки.")
+        else:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только csv или "
+                                                                           "zip-файлы.")
+    return ConversationHandler.END
+
+
 async def post_init(application: Application) -> None:
     await application.bot.set_my_commands([('convert', 'Начать преобразование'), ['cancel', 'Прервать диалог'],
                                            ('help', 'Показать справку')])
@@ -495,10 +553,13 @@ if __name__ == '__main__':
         states={
             FIRST: [MessageHandler(filters.Regex(f"^{ModeButtons.EPS2CSV}$"), partial(upload_zip, mode='eps2csv')),
                     MessageHandler(filters.Regex(f"^{ModeButtons.EPS2PDF}$"), partial(upload_zip, mode='eps2pdf')),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.EPS2XLSX}$"), csv2xlsx_upload_file),
                     MessageHandler(filters.Regex(f"^{ModeButtons.CSV2PDF}$"), convert_csv2pdf_lv1),
+                    MessageHandler(filters.Regex(f"^{ModeButtons.CSV2XLSX}$"), csv2xlsx_upload_file),
                     MessageHandler(filters.Regex(f"^{ModeButtons.JSON}$"), json_handler_upload_file),
                     MessageHandler(filters.Regex(f"^(?!{ModeButtons.EPS2CSV}$|{ModeButtons.CSV2PDF}$|"
-                                                 f"{ModeButtons.JSON}$|{ModeButtons.EPS2PDF}$).*$"), cancel), ],
+                                                 f"{ModeButtons.JSON}$|{ModeButtons.EPS2PDF}$|"
+                                                 f"{ModeButtons.EPS2XLSX}$|{ModeButtons.CSV2XLSX}$).*$"), cancel), ],
             SECOND: [  # MessageHandler(filters.Regex('Загрузить zip'), upload_zip),
                 MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
                 MessageHandler(filters.Document.ZIP, zip_file_handler)],
@@ -531,6 +592,11 @@ if __name__ == '__main__':
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data)],
             SEVENTH: [
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data)],
+            EIGTH: [
+                MessageHandler(filters.Document.FileExtension("csv"), convert_csv2xlsx),
+                MessageHandler(filters.Document.ZIP, convert_csv2xlsx),
+                MessageHandler(filters.Regex("^(?!Загрузить zip$).*$"), cancel),
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
