@@ -16,7 +16,7 @@ from enum import StrEnum
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.WARNING)
+# logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.Formatter.converter = time.gmtime
 logger = logging.getLogger(__name__)
 
@@ -487,7 +487,7 @@ async def json_handler_file_processing(update: Update, context: ContextTypes.DEF
             await update.message.reply_text(
                 "Выберите:",
                 reply_markup=ReplyKeyboardMarkup.from_button(KeyboardButton(text="Вывод из оборота", web_app=WebAppInfo
-                (url=f"https://vps658a992f8c340385650937.noezserver.de/js/withdraw"), )), )
+                (url=f"https://66cd587c6d15107f60cfcd80--dulcet-mochi-ca8577.netlify.app/withdraw"), )), )
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Отправляйте только xlsx-файлы.")
     return SIXTH
