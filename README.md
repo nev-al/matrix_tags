@@ -4,8 +4,9 @@
 2) Клонируем или качаем и распаковываем этот репозиторий в любую директорию.
 3) Создаём бота через [BotFather](https://t.me/BotFather) , получаем api-key, и копируем его в файл 'key.py', предварительно создав его в одной директории с файлом 'tg_adapter.py'.
 4) Качаем и распаковываем [архив](https://drive.google.com/file/d/1GKw7m3H7ZiVigjqHALNgxHMDznZZyShy/view?usp=sharing) в ту же директорию, то есть 'data' должна находиться в том же месте, где и 'tg_adapter.py'.
-Должна получиться такая структура:
-`.
+Должна получиться примерно такая структура:
+```
+.
 ├── Dockerfile
 ├── csv_handler.py
 ├── data
@@ -16,7 +17,8 @@
 ├── key.py
 ├── label_generation.py
 ├── requirements.txt
-├── tg_adapter.py`
+├── tg_adapter.py
+```
 
 6) С помощью консоли перейдём в директорию:
    `cd {repo-name}`
