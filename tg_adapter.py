@@ -5,7 +5,6 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
     ConversationHandler
 from functools import partial
 from re import match
-from key import *
 from extract_datamatrix_concurrent import *
 from label_generation import generate_label_full_info, generate_label_15_20mm
 from csv_handler import *
@@ -13,6 +12,9 @@ from db_adapter import *
 import time
 import os
 from enum import StrEnum
+
+
+TELEGRAM_TOKEN = os.environ['TELEGRAM_TOKEN']
 
 logging.basicConfig(filename='logs.txt', filemode='a',
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
